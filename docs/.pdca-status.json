@@ -1,0 +1,24 @@
+{
+  "version": "2.0",
+  "lastUpdated": "2026-03-24T10:30:00.000Z",
+  "activeFeatures": ["council-v2-expansion"],
+  "primaryFeature": "council-v2-expansion",
+  "features": {
+    "council-v2-expansion": {
+      "phase": "plan",
+      "planPath": "docs/01-plan/features/council-v2-expansion.plan.md",
+      "startedAt": "2026-03-24T10:30:00.000Z"
+    }
+  },
+  "pipeline": {
+    "currentPhase": 1,
+    "level": "Dynamic",
+    "phaseHistory": []
+  },
+  "session": {
+    "startedAt": "2026-03-19T11:11:31.615Z",
+    "onboardingCompleted": true,
+    "lastActivity": "2026-03-24T10:30:00.000Z"
+  },
+  "history": []
+}

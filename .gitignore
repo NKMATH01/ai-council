@@ -1,0 +1,11 @@
+node_modules
+.next
+.env.local
+.env*.local
+out
+data/
+*.db
+*.db-shm
+*.db-wal
+.claude/
+build-escalated-review.log
