@@ -18,7 +18,7 @@ export default async function SessionsPage() {
           <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">저장 문서</h1>
           <p className="text-sm text-text-muted mt-1">토론 세션과 문서를 관리합니다</p>
         </div>
-        <Link href="/" className="px-4 py-2 bg-accent text-white text-xs font-semibold rounded-lg shadow-sm hover:bg-accent/90">
+        <Link href="/" className="px-4 py-2 btn-accent text-white text-xs font-semibold rounded-lg">
           새 토론 시작
         </Link>
       </div>

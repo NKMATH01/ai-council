@@ -23,32 +23,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body
-        className="bg-bg min-h-screen text-text-primary antialiased"
+        className="bg-bg min-h-screen text-text-primary antialiased noise"
         style={{ fontFamily: "'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif" }}
       >
         {/* Global header */}
-        <header className="border-b border-border-light bg-bg-card/90 backdrop-blur-sm sticky top-0 z-50">
-          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-              <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center">
-                <span className="text-white font-bold text-[10px] tracking-tight">AC</span>
+        <header className="border-b border-border/50 glass sticky top-0 z-50">
+          <div className="max-w-6xl mx-auto px-6 py-3.5 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity group">
+              <div className="w-8 h-8 rounded-lg btn-accent flex items-center justify-center">
+                <span className="text-white font-bold text-xs tracking-tight">AC</span>
               </div>
               <div>
                 <h1 className="text-sm font-bold text-text-primary tracking-tight">AI Council</h1>
-                <p className="text-[10px] text-text-muted tracking-wide">관점 수렴 워크스페이스</p>
+                <p className="text-[10px] text-text-muted tracking-wide">Perspective Convergence</p>
               </div>
             </Link>
-            <nav className="flex items-center gap-4">
-              <Link href="/" className="text-xs text-text-secondary hover:text-text-primary transition-colors">
+            <nav className="flex items-center gap-1">
+              <Link href="/" className="px-3.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-hover rounded-lg transition-all">
                 워크스페이스
               </Link>
-              <Link href="/sessions" className="text-xs text-text-secondary hover:text-text-primary transition-colors">
+              <Link href="/sessions" className="px-3.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-hover rounded-lg transition-all">
                 저장 문서
               </Link>
             </nav>
           </div>
         </header>
-        <main className="max-w-6xl mx-auto px-6 py-6">
+        <main className="max-w-6xl mx-auto px-6 py-8 relative z-10">
           {children}
         </main>
       </body>

@@ -67,7 +67,7 @@ export default async function SessionDetailPage({
             )}
           </div>
           <Link href={`/?session=${id}`}
-            className="px-5 py-2.5 bg-accent text-white text-xs font-semibold rounded-lg shadow-sm hover:bg-accent/90 whitespace-nowrap">
+            className="px-5 py-2.5 btn-accent text-white text-xs font-semibold rounded-lg whitespace-nowrap">
             이어서 진행
           </Link>
         </div>

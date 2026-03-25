@@ -15,7 +15,7 @@ export default function AiMessage({ roleId, content, isStreaming = false, engine
   const role = ROLE_POOL[roleId];
 
   return (
-    <div className={`animate-slide-in border-l-2 ${isStreaming ? "border-l-accent" : "border-l-border"} pl-4 py-3 transition-all`}>
+    <div className={`animate-slide-in border-l-2 ${isStreaming ? "border-l-accent animate-glow" : "border-l-border"} pl-4 py-3 transition-all`}>
       <div className="flex items-center gap-2 mb-2">
         <span className={`w-2 h-2 rounded-full ${role.dotColor} ${isStreaming ? "animate-pulse" : ""}`} />
         <span className="text-base">{role.emoji}</span>

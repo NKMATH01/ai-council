@@ -329,7 +329,7 @@ export default function TopicInput({ onSubmit, disabled, onTopicChange, referenc
         <button
           type="submit"
           disabled={disabled || !isFormValid()}
-          className="px-6 py-2.5 bg-accent hover:bg-accent/90 text-white text-sm font-semibold rounded-xl shadow-sm shadow-accent/15 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
+          className="px-6 py-2.5 btn-accent text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
         >
           {MODE_INFO[mode].shortLabel} 시작
         </button>
