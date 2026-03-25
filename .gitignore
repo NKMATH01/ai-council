@@ -9,3 +9,5 @@ data/
 *.db-wal
 .claude/
 build-escalated-review.log
+
+.vercel
