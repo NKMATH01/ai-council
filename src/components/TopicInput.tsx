@@ -7,13 +7,17 @@ import {
 } from "@/lib/types";
 import { MODE_INFO, DEBATE_ENGINES, VERIFY_ENGINES } from "@/lib/constants";
 
+export type WorkflowType = "standard" | "plan_harness";
+
 export interface TopicSubmitData {
   topic: string;
   command: DebateCommand;
+  workflow: WorkflowType;
   debateEngine: DebateEngineId;
   verifyEngine: VerifyEngineId;
   techSpec: string;
   modeInput: ModeInput;
+  referencePrd?: string;
 }
 
 interface TopicInputProps {
@@ -23,7 +27,7 @@ interface TopicInputProps {
   referencePrd?: string;
 }
 
-const DESIGN_MODES: DebateCommand[] = ["debate", "quick", "deep"];
+const DESIGN_MODES: DebateCommand[] = ["ideate", "debate", "quick", "deep"];
 const ASSIST_MODES: DebateCommand[] = ["consult", "extend", "fix"];
 
 export default function TopicInput({ onSubmit, disabled, onTopicChange, referencePrd }: TopicInputProps) {
@@ -35,6 +39,7 @@ export default function TopicInput({ onSubmit, disabled, onTopicChange, referenc
   const [showTechSpec, setShowTechSpec] = useState(false);
   const [showEngineOptions, setShowEngineOptions] = useState(false);
   const [engineWarning, setEngineWarning] = useState("");
+  const [workflow, setWorkflow] = useState<WorkflowType>("standard");
 
   // consult 입력
   const [consultInput, setConsultInput] = useState<ConsultInput>({
@@ -117,18 +122,22 @@ export default function TopicInput({ onSubmit, disabled, onTopicChange, referenc
     e.preventDefault();
     if (!isFormValid()) return;
 
-    // 참고 PRD가 있으면 techSpec에 포함
-    const finalTechSpec = referencePrd
+    const isHarness = workflow === "plan_harness";
+    const finalTechSpec = isHarness
+      ? techSpec
+      : referencePrd
       ? `${techSpec}\n\n## 참고: 과거 토론 PRD\n${referencePrd}`.trim()
       : techSpec;
 
     onSubmit({
       topic: getTopicFromMode(),
       command: mode,
+      workflow,
       debateEngine,
       verifyEngine,
       techSpec: finalTechSpec,
       modeInput: getModeInput(),
+      referencePrd: isHarness ? referencePrd : undefined,
     });
   };
 
@@ -267,6 +276,12 @@ export default function TopicInput({ onSubmit, disabled, onTopicChange, referenc
         </button>
         {showEngineOptions && (
           <div className="space-y-3 p-3 bg-bg-muted rounded-xl border border-border-light">
+            {/* 하네스 모드 안내 */}
+            {workflow === "plan_harness" && (
+              <div className="px-3 py-2 bg-accent/10 border border-accent/20 rounded-lg text-xs text-accent">
+                자동 계획 하네스는 Claude Opus 4.6을 고정 사용합니다. 아래 엔진 선택은 하네스 모드에서 무시됩니다.
+              </div>
+            )}
             {/* 토론 엔진 */}
             <div>
               <div className="text-[10px] font-bold tracking-widest text-text-muted uppercase mb-1.5">토론 엔진</div>
@@ -324,15 +339,48 @@ export default function TopicInput({ onSubmit, disabled, onTopicChange, referenc
         )}
       </div>
 
-      {/* 제출 버튼 */}
-      <div className="px-5 pb-5 flex items-center justify-end">
-        <button
-          type="submit"
-          disabled={disabled || !isFormValid()}
-          className="px-6 py-2.5 btn-accent text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
-        >
-          {MODE_INFO[mode].shortLabel} 시작
-        </button>
+      {/* 워크플로 선택 + 제출 */}
+      <div className="px-5 pb-5 space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setWorkflow("standard")}
+            disabled={disabled}
+            className={`px-3 py-2.5 rounded-lg text-left transition-all border ${
+              workflow === "standard"
+                ? "border-accent bg-accent/10 ring-1 ring-accent/30"
+                : "border-border-light bg-bg-card hover:bg-bg-hover"
+            }`}
+          >
+            <div className="text-xs font-semibold text-text-primary">일반 토론</div>
+            <div className="text-[10px] text-text-muted mt-0.5">AI 전문가 토론 → PRD</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setWorkflow("plan_harness")}
+            disabled={disabled}
+            className={`px-3 py-2.5 rounded-lg text-left transition-all border ${
+              workflow === "plan_harness"
+                ? "border-accent bg-accent/10 ring-1 ring-accent/30"
+                : "border-border-light bg-bg-card hover:bg-bg-hover"
+            }`}
+          >
+            <div className="text-xs font-semibold text-text-primary">자동 계획</div>
+            <div className="text-[10px] text-text-muted mt-0.5">요구사항 → CPS → 검증 계획</div>
+          </button>
+        </div>
+        {workflow === "plan_harness" && (
+          <p className="text-[10px] text-accent">Claude Opus 4.6 고정. 요구사항 정규화 → CPS 분석 → 계획 생성/린트/평가를 자동 수행합니다.</p>
+        )}
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={disabled || !isFormValid()}
+            className="px-6 py-2.5 btn-accent text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
+          >
+            {workflow === "plan_harness" ? "자동 계획 시작" : `${MODE_INFO[mode].shortLabel} 시작`}
+          </button>
+        </div>
       </div>
     </form>
   );

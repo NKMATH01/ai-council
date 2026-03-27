@@ -1,15 +1,18 @@
 {
-  "sessionCount": 6,
+  "sessionCount": 10,
   "lastSession": {
-    "startedAt": "2026-03-24T13:08:27.276Z",
+    "startedAt": "2026-03-28T00:00:00.000Z",
     "platform": "claude",
     "level": "Dynamic"
   },
-  "activeFeature": "council-v2-expansion",
+  "activeFeature": null,
   "pdca": {
-    "phase": "act",
+    "phase": "archived",
     "matchRate": 97,
     "analyzedAt": "2026-03-24",
+    "reportedAt": "2026-03-28",
+    "archivedAt": "2026-03-28",
+    "archivedTo": "docs/archive/2026-03/council-v2-expansion/",
     "iteration": 1,
     "gapCount": 5,
     "fixedCount": 2,

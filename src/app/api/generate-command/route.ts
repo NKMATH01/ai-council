@@ -1,20 +1,33 @@
 import { NextRequest } from "next/server";
 import { GenerateCommandRequest } from "@/lib/types";
 import { streamClaude } from "@/lib/ai-stream";
-import { getCommandGenerationPrompt } from "@/lib/prompts";
+import {
+  getCommandGenerationPrompt,
+  getHarnessCommandPrompt, buildHarnessCommandUserMessage,
+} from "@/lib/prompts";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateCommandRequest = await request.json();
-    const { topic, command, prd, modeInput } = body;
+    const { topic, command, prd, modeInput, source, harnessArtifacts } = body;
 
-    const systemPrompt = getCommandGenerationPrompt(command);
+    let systemPrompt: string;
+    let userMessage: string;
 
-    let userMessage = `## 주제\n${topic}\n\n## 문서 내용\n${prd}`;
-    if (modeInput) {
-      userMessage += `\n\n## 원본 입력 데이터\n${JSON.stringify(modeInput, null, 2)}`;
+    // === 하네스 기반 경로 (PRD 없이 계획만으로 명령 생성) ===
+    if (source === "harness" && harnessArtifacts) {
+      systemPrompt = getHarnessCommandPrompt();
+      userMessage = buildHarnessCommandUserMessage(topic, harnessArtifacts);
+    }
+    // === 기존 PRD 기반 경로 (변경 없음) ===
+    else {
+      systemPrompt = getCommandGenerationPrompt(command);
+      userMessage = `## 주제\n${topic}\n\n## 문서 내용\n${prd}`;
+      if (modeInput) {
+        userMessage += `\n\n## 원본 입력 데이터\n${JSON.stringify(modeInput, null, 2)}`;
+      }
     }
 
     const stream = await streamClaude(systemPrompt, userMessage, false);

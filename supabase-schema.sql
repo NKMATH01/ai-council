@@ -15,6 +15,8 @@ CREATE TABLE debates (
   claude_command TEXT DEFAULT '',
   status TEXT DEFAULT 'idle',
   recommendation JSONB,
+  harness_data JSONB,
+  active_workflow TEXT DEFAULT 'standard',
   verification_provider TEXT DEFAULT '',
   verification_result TEXT DEFAULT '',
   prd_revisions JSONB DEFAULT '[]',

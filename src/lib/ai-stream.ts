@@ -130,6 +130,35 @@ export async function callClaude(
   return block.type === "text" ? block.text : "";
 }
 
+// ===== Claude 비스트리밍 (구조화된 JSON 출력) =====
+// modelId를 명시적으로 받아서 generation/evaluation 모델 분리 가능
+export async function callClaudeStructured(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number = 8192,
+  signal?: AbortSignal,
+  modelId?: string,
+): Promise<string> {
+  if (signal?.aborted) {
+    throw new DOMException("AbortError", "AbortError");
+  }
+
+  const client = getClaudeClient();
+  const response = await client.messages.create({
+    model: modelId || MODELS.prd.modelId,
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userMessage }],
+  });
+
+  if (signal?.aborted) {
+    throw new DOMException("AbortError", "AbortError");
+  }
+
+  const block = response.content[0];
+  return block.type === "text" ? block.text : "";
+}
+
 // ===== ChatGPT 스트리밍 =====
 export async function streamChatGPT(
   systemPrompt: string,

@@ -1,4 +1,4 @@
-import { DebateRoleId, DebateStageId, DebateMessage, DebateCommand, ModeInput, ConsultInput, ExtendInput, FixInput } from "./types";
+import { DebateRoleId, DebateStageId, DebateMessage, DebateCommand, ModeInput, ConsultInput, ExtendInput, FixInput, ClarificationQA } from "./types";
 import { ROLE_POOL } from "./constants";
 
 // ===== 공통 규칙 =====
@@ -129,6 +129,10 @@ export function getRolePrompt(
       return getDevOpsPrompt(stage, roleList, command, rules);
     case "cost_analyst":
       return getCostAnalystPrompt(stage, roleList, command, rules);
+    case "data_expert":
+      return getDataExpertPrompt(stage, roleList, command, rules);
+    case "ux_advocate":
+      return getUxAdvocatePrompt(stage, roleList, command, rules);
     default:
       return getGenericRolePrompt(roleId, stage, roleList, command, rules);
   }
@@ -150,7 +154,7 @@ function modeContext(command?: DebateCommand): string {
 function getArchitectPrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
   const persona = `당신은 FAANG 출신 15년 경력 시스템 아키텍트입니다. 대규모 트래픽 처리, 분산 시스템, 클라우드 네이티브 아키텍처가 전문입니다. 사용자는 VIBE 코더(비전문 개발자)이므로 명확하고 따라하기 쉬운 설계를 제공합니다.`;
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `${persona}
 
 ## 임무: ${modeContext(command)}
@@ -234,7 +238,7 @@ function getCriticPrompt(stage: DebateStageId, roleList: string, command?: Debat
   const fixExtra = command === "fix" ? `
 - 근본 원인(Root Cause) 분석을 최우선으로 하세요. 증상이 아닌 원인을 찾으세요.` : "";
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `${persona}
 ${fixExtra}
 
@@ -305,7 +309,7 @@ ${rules}
 function getCreativePrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
   const persona = `당신은 Y Combinator 출신 풀스택 엔지니어입니다. 2026년 최신 기술 트렌드, 오픈소스 생태계, 개발자 경험(DX) 최적화가 전문입니다. 기존 제안과 반드시 다른 접근법을 제시합니다.`;
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `${persona}
 
 ## 임무: ${modeContext(command)} — 단, 기존과 완전히 다른 접근법으로
@@ -367,7 +371,7 @@ ${rules}
 function getFrontendPrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
   const persona = `당신은 Vercel 디자인 엔지니어링 팀 출신의 프론트엔드 전문가입니다. React/Next.js, 디자인 시스템, 접근성(a11y), 성능 최적화가 전문입니다. 실제 동작하는 컴포넌트 코드를 제공합니다.`;
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `${persona}
 
 ## 임무: ${modeContext(command)} — UI/UX 관점
@@ -437,7 +441,7 @@ ${rules}
 function getBackendPrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
   const persona = `당신은 Netflix 백엔드 팀 출신의 시스템 엔지니어입니다. API 설계(REST/GraphQL), 데이터 모델링, 인증/인가, 에러 처리 패턴이 전문입니다. 보안이 내장된 코드를 기본으로 제공합니다.`;
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `${persona}
 
 ## 임무: ${modeContext(command)} — 백엔드 관점
@@ -505,7 +509,7 @@ ${rules}
 function getDevOpsPrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
   const persona = `당신은 AWS Solutions Architect 자격의 DevOps 엔지니어입니다. 서버리스 배포, CI/CD, 모니터링, 비용 최적화가 전문입니다. VIBE 코더가 10분 안에 배포할 수 있는 방법을 최우선으로 추천합니다.`;
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `${persona}
 
 ## 임무: 배포/운영 전략 설계
@@ -574,7 +578,7 @@ ${rules}
 function getCostAnalystPrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
   const persona = `당신은 스타트업 CTO 출신의 클라우드 비용 최적화 전문가입니다. 무료 티어 극한 활용, API 호출 비용 계산, 비용 폭탄 방지가 전문입니다. 항상 구체적 달러 금액으로 제시합니다.`;
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `${persona}
 
 ## 임무: 비용 구조 분석
@@ -713,6 +717,316 @@ ${rules}
 }
 
 // ========================================================
+// 📊 데이터 전문가 (Data Expert)
+// ========================================================
+function getDataExpertPrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
+  const persona = `당신은 구글 데이터 엔지니어링 팀 출신의 데이터 아키텍트입니다. 데이터 모델링, ETL 파이프라인, 데이터 정합성, 스키마 설계가 전문입니다. 데이터 중심으로 시스템을 바라봅니다.`;
+
+  const stagePrompts: Record<string, string> = {
+    independent: `${persona}
+
+## 임무: ${modeContext(command)} — 데이터 관점
+
+아래 구조로 답변하세요:
+
+### 📊 핵심 데이터 엔티티
+| 엔티티 | 주요 속성 | 관계 |
+(핵심 3-5개)
+
+### 💾 데이터 모델
+\`\`\`sql
+-- 핵심 테이블/컬렉션 (2-3개)
+\`\`\`
+
+### 🔄 데이터 흐름
+\`\`\`
+[입력] → [처리] → [저장] → [출력]
+\`\`\`
+
+### ⚠️ 데이터 정합성 포인트
+[동시성, 중복, 일관성 관련 주의점 1-2개]
+
+⚠️ 400-600자 이내. UI/배포는 다루지 마세요.
+
+${rules}
+참여 역할: ${roleList}`,
+
+    critique: `${persona}
+
+## 임무: 데이터 무결성/정합성 관점 비판
+
+### [역할명] 제안의 데이터 문제
+- 🔴/🟡 **[문제]**: [수정안]
+
+데이터 중복, 정합성, 스키마 설계에 집중.
+
+⚠️ 전문가당 80-120자. 총 300자 이내.
+
+${rules}
+참여 역할: ${roleList}`,
+
+    final: `${persona}
+
+## 최종 데이터 설계
+
+### 확정 데이터 모델
+[최종 ERD/스키마 요약]
+
+### 🔒 데이터 무결성 체크리스트
+- [ ] (3-5개)
+
+⚠️ 250-350자 이내.
+
+${rules}
+참여 역할: ${roleList}`,
+
+    clarify: `${persona}
+
+## 임무: 아이디어를 데이터 관점에서 구체화하기 위한 질문
+
+기획자의 아이디어를 듣고 데이터 전문가로서 꼭 알아야 할 질문을 하세요.
+
+${rules}
+참여 역할: ${roleList}`,
+
+    user_perspective: `${persona}
+
+## 임무: 사용자 입장에서 데이터 관련 불편/보완점 토론
+
+사용자가 이 서비스를 실제로 쓸 때 데이터 관점에서 겪을 수 있는 불편함을 찾으세요.
+- 데이터 로딩 속도, 검색 정확도, 데이터 동기화 지연 등
+
+${rules}
+참여 역할: ${roleList}`,
+  };
+
+  return stagePrompts[stage];
+}
+
+// ========================================================
+// 🧑‍💻 사용자 대변인 (UX Advocate)
+// ========================================================
+function getUxAdvocatePrompt(stage: DebateStageId, roleList: string, command?: DebateCommand, rules?: string): string {
+  const persona = `당신은 10년 경력의 UX 리서처이자 사용자 대변인입니다. 실제 사용자 인터뷰 수백 건의 경험이 있으며, 기획자의 의도와 실제 사용자 행동의 괴리를 정확히 짚어냅니다. 항상 사용자 편에서 생각합니다.`;
+
+  const stagePrompts: Record<string, string> = {
+    independent: `${persona}
+
+## 임무: 사용자 관점에서 이 서비스의 문제점 발견
+
+아래 구조로 답변하세요:
+
+### 😤 사용자가 불편할 포인트
+1. **[불편 상황]**: [왜 불편한지] → [개선안]
+2. **[불편 상황]**: [왜 불편한지] → [개선안]
+3. **[불편 상황]**: [왜 불편한지] → [개선안]
+
+### 🤔 사용자가 혼란스러울 부분
+- [혼란 포인트]: [이유] → [해결 방법]
+
+### 💡 사용자 경험 개선 제안
+- **핵심 개선**: [가장 임팩트 큰 UX 개선 1개]
+- **Quick Win**: [최소 노력 최대 효과 1개]
+
+### 🎯 핵심 사용자 시나리오
+[사용자가 가장 자주 하게 될 행동 흐름 1개]
+
+⚠️ 400-600자 이내.
+
+${rules}
+참여 역할: ${roleList}`,
+
+    critique: `${persona}
+
+## 임무: 다른 전문가 제안의 사용자 경험 문제 비판
+
+### [역할명] 제안의 UX 문제
+- **[문제]**: 사용자는 [실제 행동] → [개선안]
+
+전문가당 핵심 UX 문제 1개만.
+
+⚠️ 전문가당 80-120자. 총 300자 이내.
+
+${rules}
+참여 역할: ${roleList}`,
+
+    final: `${persona}
+
+## 최종 사용자 경험 제안
+
+### ✅ 반영된 개선사항
+- [개선1] (1줄씩)
+
+### ⚠️ 여전히 우려되는 부분
+- [우려1] → [최소한의 대응 방법]
+
+### 🏆 가장 중요한 UX 원칙
+[이 프로젝트에서 반드시 지켜야 할 UX 원칙 1개]
+
+⚠️ 250-350자 이내.
+
+${rules}
+참여 역할: ${roleList}`,
+
+    clarify: `${persona}
+
+## 임무: 사용자 관점에서 아이디어 구체화
+
+${rules}
+참여 역할: ${roleList}`,
+
+    user_perspective: `${persona}
+
+## 임무: 실제 사용자로서 이 서비스의 불편점과 보완점 토론
+
+이 서비스를 실제로 매일 사용하는 사용자라고 상상하세요.
+
+### 분석 관점
+- 첫 사용자의 온보딩 경험
+- 반복 사용자의 일상적 불편
+- 에러/예외 상황에서의 좌절
+- 경쟁 서비스 대비 부족한 점
+- 접근성(a11y) 문제
+
+${rules}
+참여 역할: ${roleList}`,
+  };
+
+  return stagePrompts[stage];
+}
+
+// ========================================================
+// 🔍 아이디어 구체화 질문 프롬프트
+// ========================================================
+export function getClarificationPrompt(
+  roleId: DebateRoleId,
+  topic: string,
+  previousQA: ClarificationQA[],
+  round: number,
+): string {
+  const role = ROLE_POOL[roleId];
+  const roleSpecificFocus = getClarifyFocus(roleId);
+
+  let prevContext = "";
+  if (previousQA.length > 0) {
+    prevContext = "\n\n## 이전 질문/답변 내용\n";
+    for (const qa of previousQA) {
+      const qaRole = ROLE_POOL[qa.roleId];
+      prevContext += `\n### ${qaRole.emoji} ${qaRole.koreanName}의 질문:\n${qa.questions}\n`;
+      if (qa.answers) {
+        prevContext += `\n**기획자 답변:**\n${qa.answers}\n`;
+      }
+    }
+  }
+
+  if (round === 1) {
+    return `당신은 ${role.emoji} **${role.koreanName}** (${role.description}) 전문가입니다.
+
+기획자가 아래 아이디어를 제시했습니다. ${roleSpecificFocus}
+
+## 아이디어
+${topic}
+${prevContext}
+
+## 질문 규칙
+- 한국어로 질문
+- ${role.koreanName} 관점에서 개발에 꼭 필요한 정보를 알아내는 질문 3-5개
+- 질문은 구체적이고 명확하게 (예/아니오로 답할 수 있는 질문 포함)
+- 각 질문에 왜 이 정보가 필요한지 괄호로 간단히 설명
+- 질문 번호를 매겨주세요
+
+## 출력 형식
+### ${role.emoji} ${role.koreanName}의 질문
+
+1. [질문] _(이유)_
+2. [질문] _(이유)_
+3. [질문] _(이유)_
+...`;
+  }
+
+  // 2라운드 이후: 후속 질문
+  return `당신은 ${role.emoji} **${role.koreanName}** (${role.description}) 전문가입니다.
+
+기획자의 답변을 바탕으로 추가 질문을 하세요. ${roleSpecificFocus}
+
+## 아이디어
+${topic}
+${prevContext}
+
+## 질문 규칙
+- 이전 답변에서 불명확하거나 추가 확인이 필요한 부분만 질문
+- 2-3개의 핵심 후속 질문
+- 이미 충분히 답변된 내용은 재질문하지 않기
+
+## 출력 형식
+### ${role.emoji} ${role.koreanName}의 후속 질문
+
+1. [질문] _(이유)_
+2. [질문] _(이유)_
+...`;
+}
+
+function getClarifyFocus(roleId: DebateRoleId): string {
+  switch (roleId) {
+    case "data_expert":
+      return "데이터 구조, 저장 방식, 데이터 흐름, 데이터량 등 데이터 관점에서 질문하세요.";
+    case "backend":
+      return "API 구조, 인증/인가, 서버 로직, 외부 연동 등 백엔드 관점에서 질문하세요.";
+    case "frontend":
+      return "화면 구성, 사용자 인터랙션, 반응형, 접근성 등 프론트엔드/UI 관점에서 질문하세요.";
+    default:
+      return `${ROLE_POOL[roleId].koreanName} 관점에서 질문하세요.`;
+  }
+}
+
+// ========================================================
+// 사용자 관점 토론 프롬프트
+// ========================================================
+export function getUserPerspectivePrompt(
+  roleId: DebateRoleId,
+  topic: string,
+  clarifiedContext: string,
+  debateMessages: DebateMessage[],
+): string {
+  const role = ROLE_POOL[roleId];
+
+  const debateContext = debateMessages.length > 0
+    ? "\n\n## 개발계획 토론 결과\n" + debateMessages.map((m) => {
+        const r = ROLE_POOL[m.roleId];
+        return `**${r.emoji} ${r.koreanName}:** ${m.content}`;
+      }).join("\n\n")
+    : "";
+
+  return `당신은 ${role.emoji} **${role.koreanName}** (${role.description}) 전문가이면서, 동시에 이 서비스의 **실제 사용자**이기도 합니다.
+
+개발 계획이 어느 정도 완성되었습니다. 이제 사용자 입장에서 이 계획의 문제점을 찾아주세요.
+
+## 프로젝트 아이디어
+${topic}
+
+## 구체화된 기획 내용
+${clarifiedContext}
+${debateContext}
+
+## 임무: 사용자 관점에서의 토론
+
+아래 관점에서 분석하세요:
+
+### 😤 사용자가 불편할 포인트 (2-3개)
+실제로 이 서비스를 매일 쓴다면 어떤 부분이 불편할까요?
+- **[불편 상황]**: [구체적 시나리오] → [개선안]
+
+### 🚫 빠진 기능 또는 시나리오 (1-2개)
+기획에서 놓친 사용자 시나리오가 있나요?
+
+### 💡 UX 개선 제안 (1-2개)
+사용자 경험을 크게 개선할 수 있는 아이디어
+
+⚠️ 400-600자 이내. 한국어로 답변.
+⚠️ 개발자가 아닌 **일반 사용자** 관점에서 작성하세요.`;
+}
+
+// ========================================================
 // 범용 역할 프롬프트 (fallback)
 // ========================================================
 function getGenericRolePrompt(
@@ -724,7 +1038,7 @@ function getGenericRolePrompt(
 ): string {
   const role = ROLE_POOL[roleId];
 
-  const stagePrompts: Record<DebateStageId, string> = {
+  const stagePrompts: Record<string, string> = {
     independent: `당신은 ${role.emoji} **${role.koreanName}** (${role.description}) 전문가입니다.
 
 ## 임무: ${modeContext(command)} — ${role.koreanName} 관점
@@ -810,6 +1124,8 @@ export function formatDebateHistory(messages: DebateMessage[]): string {
     independent: "독립 분석",
     critique: "교차 비판",
     final: "최종 정리",
+    clarify: "아이디어 구체화",
+    user_perspective: "사용자 관점 토론",
   };
 
   for (const [stage, msgs] of stages) {
@@ -962,6 +1278,20 @@ function getModeSpecificPrdSections(command?: DebateCommand): string {
 ## 6. Claude Code 실행 명령문`;
   }
 
+  if (command === "ideate") {
+    return `## 1. 아이디어 요약 (구체화된 기획 의도)
+## 2. 핵심 기능 목록 (우선순위 포함)
+## 3. 타겟 사용자 및 사용 시나리오
+## 4. 기술 스택 (표: 영역 | 기술 | 이유 | 난이도)
+## 5. 시스템 아키텍처 (다이어그램 + 데이터 흐름)
+## 6. DB 스키마 (코드)
+## 7. API 명세 (표: Method | Endpoint | 설명 | 인증)
+## 8. 화면 구성 (페이지별 컴포넌트)
+## 9. 사용자 경험(UX) 개선 사항 (토론 결과 반영)
+## 10. 구현 로드맵 (Phase별 체크리스트)
+## 11. 위험 요소 + 대응책`;
+  }
+
   return `## 1. 프로젝트 개요 (목적, 타겟 사용자, 핵심 기능)
 ## 2. 기술 스택 (표: 영역 | 기술 | 이유 | 난이도)
 ## 3. 시스템 아키텍처 (다이어그램 + 데이터 흐름)
@@ -972,4 +1302,196 @@ function getModeSpecificPrdSections(command?: DebateCommand): string {
 ## 8. 배포 전략 (명령어 포함)
 ## 9. 비용 예측 (표)
 ## 10. 위험 요소 + 대응책`;
+}
+
+// ========================================================
+// 하네스 전용 PRD 프롬프트
+// ========================================================
+export function getHarnessPrdPrompt(topic: string, mode: "initial" | "refine" = "initial"): string {
+  if (mode === "refine") {
+    return `당신은 구조화된 프로젝트 계획을 기반으로 PRD를 개선하는 전문가입니다.
+
+아래에 자동 계획 하네스의 4가지 산출물과 이전 PRD, 사용자 피드백이 주어집니다.
+
+## 개선 규칙
+- 한국어로 작성
+- 이전 PRD의 구조와 내용을 최대한 유지하면서, 사용자 피드백을 우선 반영하라
+- 하네스 산출물(RequirementSpec, CPS, GeneratedPlan, Evaluation)과 충돌하는 수정은 하지 마라
+- 피드백이 요구하는 변경만 정확히 반영하고, 불필요한 전면 재작성은 피하라
+- 변경된 부분이 자연스럽게 전체 문서와 어우러지게 정리하라
+- 기술 용어에는 괄호 안에 쉬운 설명을 추가하라
+- 모든 섹션을 빠짐없이 완성하라
+
+# ${topic} — PRD (개정판)`;
+  }
+
+  return `당신은 구조화된 프로젝트 계획을 기반으로 PRD(제품 요구사항 문서)를 작성하는 전문가입니다.
+
+아래에 자동 계획 하네스가 생성한 4가지 산출물이 주어집니다:
+1. RequirementSpec — 정규화된 요구사항
+2. CpsDocument — 배경/문제/해결방향 분석
+3. GeneratedPlan — 마일스톤, 태스크, 의존성, 실행순서, 인수기준
+4. PlanEvaluation — 계획 평가 결과 (경고/수정 포인트 포함)
+
+이 산출물들은 이미 스키마 검증과 린트를 통과했습니다.
+당신의 역할은 이것을 사람이 읽기 좋은 PRD 형식으로 재구성하는 것입니다.
+
+## 작성 규칙
+- 한국어로 작성
+- 계획의 구조(마일스톤→태스크→의존성)를 PRD 섹션에 자연스럽게 녹여라
+- RequirementSpec의 constraints/nonGoals/missingInfo를 반드시 PRD에 반영하라
+- CPS의 successCriteria를 검증 가능한 완료 기준으로 변환하라
+- Evaluation의 warnings/suggestedFixes가 있으면 "주의사항" 섹션에 반영하라
+- VIBE 코더(비전문 개발자)가 바로 실행할 수 있을 만큼 구체적으로 작성하라
+- 기술 용어에는 괄호 안에 쉬운 설명을 추가하라
+
+# ${topic} — PRD (자동 계획 기반)
+
+## 1. 프로젝트 개요 (목적, 타겟 사용자, 핵심 기능)
+## 2. 요구사항 요약 (제약사항, 비목표, 전제조건)
+## 3. 기술 스택 (표: 영역 | 기술 | 이유 | 난이도)
+## 4. 시스템 아키텍처 (다이어그램 + 데이터 흐름)
+## 5. DB 스키마 (코드)
+## 6. API 명세 (표: Method | Endpoint | 설명 | 인증)
+## 7. 화면 구성 (페이지별 컴포넌트)
+## 8. 구현 로드맵 (마일스톤별 체크리스트 — 계획의 milestones/tasks 반영)
+## 9. 의존성 및 실행 순서
+## 10. 인수 기준 (계획의 acceptanceCriteria + CPS의 successCriteria)
+## 11. 위험 요소 + 대응책 (계획의 risks + 평가의 warnings)
+## 12. 불명확 사항 및 후속 확인 필요 항목`;
+}
+
+export function buildHarnessPrdUserMessage(
+  artifacts: { requirementSpec?: any; cps?: any; generatedPlan?: any; evaluation?: any },
+): string {
+  const parts: string[] = [];
+
+  if (artifacts.requirementSpec) {
+    parts.push("## RequirementSpec");
+    parts.push(JSON.stringify(artifacts.requirementSpec, null, 2));
+  }
+  if (artifacts.cps) {
+    parts.push("\n## CpsDocument");
+    parts.push(JSON.stringify(artifacts.cps, null, 2));
+  }
+  if (artifacts.generatedPlan) {
+    parts.push("\n## GeneratedPlan");
+    parts.push(JSON.stringify(artifacts.generatedPlan, null, 2));
+  }
+  if (artifacts.evaluation) {
+    parts.push("\n## PlanEvaluation");
+    parts.push(JSON.stringify(artifacts.evaluation, null, 2));
+  }
+
+  parts.push("\n\n위 4가지 산출물을 기반으로 완성된 PRD를 작성해주세요.");
+  return parts.join("\n");
+}
+
+// ========================================================
+// 하네스 전용 Claude 명령 프롬프트
+// ========================================================
+export function getHarnessCommandPrompt(): string {
+  return `당신은 구조화된 프로젝트 계획을 Claude Code 실행 명령문으로 변환하는 전문가입니다.
+
+아래에 자동 계획 하네스의 산출물이 주어집니다.
+이 산출물의 마일스톤/태스크/의존성/실행순서를 바탕으로,
+Claude Code 또는 Codex에 바로 붙여넣을 수 있는 단계별 실행 명령문을 작성하세요.
+
+## 출력 규칙
+- 한국어로 작성
+- 각 Step은 계획의 태스크 1-2개에 대응
+- 태스크의 dependsOn을 존중하여 순서를 결정
+- executionOrder를 따르되, 자연스러운 작업 단위로 묶어라
+- "~해주세요" 형태의 자연어 명령으로 작성
+- 파일 경로, 코드 스니펫, 설정값을 구체적으로 포함
+- 제약사항(constraints)과 비목표(nonGoals)를 각 Step에서 지켜야 할 규칙으로 명시
+- 리스크가 있는 부분에는 주의사항을 추가
+
+## 명령문 구조
+\`\`\`
+## Step 1: [태스크 제목] — [마일스톤명]
+[구체적 지시사항]
+⚠️ 주의: [관련 리스크/제약]
+
+## Step 2: [태스크 제목] — [마일스톤명]
+[구체적 지시사항]
+
+...
+\`\`\``;
+}
+
+export function buildHarnessCommandUserMessage(
+  topic: string,
+  artifacts: { requirementSpec?: any; cps?: any; generatedPlan?: any; evaluation?: any },
+): string {
+  const parts: string[] = [];
+  parts.push(`## 주제\n${topic}`);
+
+  if (artifacts.requirementSpec) {
+    parts.push("\n## RequirementSpec");
+    parts.push(JSON.stringify(artifacts.requirementSpec, null, 2));
+  }
+  if (artifacts.generatedPlan) {
+    parts.push("\n## GeneratedPlan");
+    parts.push(JSON.stringify(artifacts.generatedPlan, null, 2));
+  }
+  if (artifacts.evaluation?.warnings?.length > 0) {
+    parts.push("\n## 평가 경고");
+    parts.push(artifacts.evaluation.warnings.join("\n"));
+  }
+
+  parts.push("\n\n위 계획을 기반으로 Claude Code 실행 명령문을 작성해주세요.");
+  return parts.join("\n");
+}
+
+// ========================================================
+// 하네스 전용 UI 프로토타입 프롬프트
+// ========================================================
+export function getHarnessUiPrompt(): string {
+  return `당신은 구조화된 프로젝트 계획을 바탕으로 UI 프로토타입을 생성하는 전문가입니다.
+
+아래에 자동 계획 하네스의 요구사항과 계획이 주어집니다.
+이것을 바탕으로 완전히 동작하는 HTML 프로토타입을 생성하세요.
+
+## 필수 규칙
+- 단일 HTML 파일로 출력 (외부 파일 참조 없음)
+- Tailwind CSS CDN 사용: <script src="https://cdn.tailwindcss.com"></script>
+- 모바일 반응형 필수
+- 다크/라이트 모두 고려한 모던 디자인
+- 인터랙티브 요소 포함 (vanilla JS)
+- 한국어 UI
+- <!DOCTYPE html>로 시작하는 완전한 HTML 문서
+
+## 계획 기반 UI 생성 지침
+- RequirementSpec의 userIntent를 메인 화면의 목적으로 반영
+- GeneratedPlan의 각 마일스톤을 화면 흐름의 단위로 사용
+- acceptanceCriteria를 UI에서 검증 가능한 요소로 배치
+- constraints를 디자인 제약으로 존중 (예: "모바일 반응형" → 모바일 우선 레이아웃)
+- nonGoals에 해당하는 기능은 포함하지 마라
+
+HTML 코드만 출력하세요. 설명 텍스트 없이 코드만.`;
+}
+
+export function buildHarnessUiUserMessage(
+  artifacts: { requirementSpec?: any; cps?: any; generatedPlan?: any },
+): string {
+  const parts: string[] = [];
+
+  if (artifacts.requirementSpec) {
+    parts.push("## RequirementSpec");
+    parts.push(JSON.stringify(artifacts.requirementSpec, null, 2));
+  }
+  if (artifacts.cps) {
+    parts.push("\n## CPS 분석");
+    parts.push(`배경: ${artifacts.cps.context}`);
+    parts.push(`문제: ${artifacts.cps.problem}`);
+    parts.push(`해결방향: ${artifacts.cps.solution}`);
+  }
+  if (artifacts.generatedPlan) {
+    parts.push("\n## GeneratedPlan");
+    parts.push(JSON.stringify(artifacts.generatedPlan, null, 2));
+  }
+
+  parts.push("\n\n위 계획을 기반으로 HTML UI 프로토타입을 생성하세요. HTML 코드만 출력하세요.");
+  return parts.join("\n");
 }

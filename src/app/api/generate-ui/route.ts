@@ -1,24 +1,33 @@
 import { NextRequest } from "next/server";
 import { GenerateUiRequest } from "@/lib/types";
 import { streamGemini } from "@/lib/ai-stream";
-import { getUiPrototypePrompt, getUiRefinePrompt } from "@/lib/prompts";
+import {
+  getUiPrototypePrompt, getUiRefinePrompt,
+  getHarnessUiPrompt, buildHarnessUiUserMessage,
+} from "@/lib/prompts";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateUiRequest = await request.json();
-    const { prd, existingHtml, modificationRequest } = body;
+    const { prd, existingHtml, modificationRequest, source, harnessArtifacts } = body;
 
     let systemPrompt: string;
     let userMessage: string;
 
     if (existingHtml && modificationRequest) {
-      // 수정 요청
+      // 수정 요청 (하네스/일반 공통)
       systemPrompt = getUiRefinePrompt();
       userMessage = `## 기존 HTML 코드\n${existingHtml}\n\n## 수정 요청\n${modificationRequest}`;
-    } else {
-      // 초기 생성
+    }
+    // === 하네스 기반 초기 생성 (PRD 없이 계획만으로) ===
+    else if (source === "harness" && harnessArtifacts) {
+      systemPrompt = getHarnessUiPrompt();
+      userMessage = buildHarnessUiUserMessage(harnessArtifacts);
+    }
+    // === 기존 PRD 기반 초기 생성 (변경 없음) ===
+    else {
       systemPrompt = getUiPrototypePrompt();
       userMessage = prd;
     }

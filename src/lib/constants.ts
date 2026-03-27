@@ -106,6 +106,32 @@ export const ROLE_POOL: Record<
     badgeText: "text-role-cost",
     borderColor: "border-role-cost/20",
   },
+  data_expert: {
+    id: "data_expert",
+    emoji: "\u{1F4CA}",
+    name: "Data Expert",
+    koreanName: "데이터 전문가",
+    description: "데이터 구조, DB 설계, 데이터 흐름",
+    alwaysInclude: false,
+    condition: "아이디어 구체화 모드",
+    dotColor: "bg-role-data",
+    badgeBg: "bg-role-data-bg",
+    badgeText: "text-role-data",
+    borderColor: "border-role-data/20",
+  },
+  ux_advocate: {
+    id: "ux_advocate",
+    emoji: "\u{1F9D1}\u200D\u{1F4BB}",
+    name: "UX Advocate",
+    koreanName: "사용자 대변인",
+    description: "사용자 관점, UX 불편/보완점",
+    alwaysInclude: false,
+    condition: "아이디어 구체화 모드",
+    dotColor: "bg-role-ux",
+    badgeBg: "bg-role-ux-bg",
+    badgeText: "text-role-ux",
+    borderColor: "border-role-ux/20",
+  },
   moderator: {
     id: "moderator",
     emoji: "\u2696\uFE0F",
@@ -127,6 +153,11 @@ export const DEEP_ROLES: DebateRoleId[] = [
 ];
 export const CONSULT_ROLES: DebateRoleId[] = ["architect", "critic", "creative", "moderator"];
 export const FIX_ROLES: DebateRoleId[] = ["critic", "architect", "moderator"];
+
+// /ideate 모드 역할
+export const IDEATE_CLARIFY_ROLES: DebateRoleId[] = ["data_expert", "backend", "frontend"];
+export const IDEATE_DEBATE_ROLES: DebateRoleId[] = ["data_expert", "backend", "frontend", "architect", "critic", "moderator"];
+export const IDEATE_UX_ROLES: DebateRoleId[] = ["ux_advocate", "frontend", "creative", "moderator"];
 
 // 역할 순서 (중재자는 항상 마지막)
 export function getDebateOrder(roles: DebateRoleId[], command?: DebateCommand): DebateRoleId[] {
@@ -184,7 +215,13 @@ export const STAGE_LABELS: Record<string, string> = {
   independent: "독립 분석",
   critique: "교차 비판",
   final: "최종 정리",
+  clarify: "아이디어 구체화",
+  user_perspective: "사용자 관점 토론",
 };
+
+// 하네스 모드는 서버 단일 응답이므로 generating_plan 하나만 사용.
+// structuring_requirements / building_cps / lint_retrying / evaluating_plan 은
+// 실제 런타임에서 사용되지 않아 제거됨 (2026-03-27).
 
 // 검증 옵션 (레거시 호환)
 export const VERIFICATION_OPTIONS: {
@@ -230,6 +267,7 @@ export const MODE_INFO: Record<DebateCommand, {
   consult: { label: "전문가 의견 청취", shortLabel: "/consult", description: "기존 코드에 대한 전문가 리뷰", category: "보완" },
   extend: { label: "기능 추가 설계", shortLabel: "/extend", description: "기존 프로그램에 기능 추가", category: "보완" },
   fix: { label: "구조 수정 AS", shortLabel: "/fix", description: "구조 문제 진단 및 수정", category: "보완" },
+  ideate: { label: "아이디어 → 개발계획", shortLabel: "/ideate", description: "전문가 질문으로 아이디어 구체화 → 개발계획 수립", category: "설계" },
 };
 
 // 엔진 라벨 헬퍼

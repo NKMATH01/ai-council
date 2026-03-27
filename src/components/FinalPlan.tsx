@@ -14,6 +14,7 @@ interface FinalPlanProps {
   isRefining: boolean;
   verificationResult?: string;
   command?: DebateCommand;
+  isHarnessMode?: boolean;
 }
 
 const DOC_TITLES: Record<string, string> = {
@@ -27,7 +28,7 @@ const DOC_TITLES: Record<string, string> = {
 
 export default function FinalPlan({
   plan, isGenerating, revisionCount, prdRevisions,
-  onSubmitFeedback, isRefining, verificationResult, command = "debate",
+  onSubmitFeedback, isRefining, verificationResult, command = "debate", isHarnessMode = false,
 }: FinalPlanProps) {
   const [feedback, setFeedback] = useState("");
   const [viewingVersion, setViewingVersion] = useState<number | null>(null);
@@ -165,7 +166,11 @@ export default function FinalPlan({
               </svg>
             </span>
             <h3 className="text-sm font-semibold text-text-primary">피드백</h3>
-            <span className="text-[11px] text-text-muted">피드백을 입력하면 AI가 추가 토론 후 문서를 개선합니다</span>
+            <span className="text-[11px] text-text-muted">
+              {isHarnessMode
+                ? "피드백을 입력하면 하네스 산출물 기반으로 PRD를 수정합니다"
+                : "피드백을 입력하면 AI가 추가 토론 후 문서를 개선합니다"}
+            </span>
           </div>
           <div className="flex gap-3">
             <textarea

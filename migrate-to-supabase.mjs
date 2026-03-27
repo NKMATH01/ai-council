@@ -33,6 +33,8 @@ async function migrate() {
         claude_command: raw.generatedCommand || "",
         status: raw.status || "complete",
         recommendation: raw.recommendation || null,
+        harness_data: raw.harness || null,
+        active_workflow: raw.activeWorkflow || null,
         verification_provider: raw.verificationProvider || "",
         verification_result: raw.verificationResult || "",
         prd_revisions: raw.prdRevisions || [],
