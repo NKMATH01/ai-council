@@ -23,6 +23,8 @@ CREATE TABLE debates (
   revision_count INTEGER DEFAULT 0,
   feedbacks JSONB DEFAULT '[]',
   mode_input JSONB,
+  clarifications JSONB,
+  clarification_round INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

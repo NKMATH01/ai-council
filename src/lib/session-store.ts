@@ -6,12 +6,22 @@ export type SaveStorageMode = "dedicated" | "legacy";
 
 export async function saveSession(session: Session): Promise<{ storageMode: SaveStorageMode }> {
   let storageMode: SaveStorageMode = "dedicated";
-  let { error } = await upsertDebateRow(buildSessionRow(session));
+  let row = buildSessionRow(session);
+  let { error } = await upsertDebateRow(row);
 
+  // 점진적 fallback: 없는 컬럼을 하나씩 제거하며 재시도
   if (error && isMissingHarnessStorageColumnError(error.message)) {
     storageMode = "legacy";
-    console.warn("[session-store] dedicated harness columns not found, falling back to legacy recommendation JSONB");
-    ({ error } = await upsertDebateRow(buildSessionRow(session, { harnessStorage: "legacy" })));
+    console.warn("[session-store] harness columns not found, falling back to legacy");
+    row = buildSessionRow(session, { harnessStorage: "legacy" });
+    ({ error } = await upsertDebateRow(row));
+  }
+
+  if (error && isMissingColumnError(error.message, "clarification")) {
+    console.warn("[session-store] clarification columns not found, saving without");
+    const { clarifications: _, clarification_round: __, ...stripped } = row;
+    row = stripped as SessionRow;
+    ({ error } = await upsertDebateRow(row));
   }
 
   if (error) throw new Error(`saveSession failed: ${error.message}`);
@@ -253,4 +263,10 @@ async function upsertDebateRow(row: SessionRow) {
 function isMissingHarnessStorageColumnError(message: string) {
   const normalized = message.toLowerCase();
   return normalized.includes("harness_data") || normalized.includes("active_workflow");
+}
+
+function isMissingColumnError(message: string, columnHint: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes(columnHint.toLowerCase()) &&
+    (normalized.includes("column") || normalized.includes("undefined") || normalized.includes("not exist"));
 }

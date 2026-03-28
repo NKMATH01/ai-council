@@ -33,6 +33,8 @@ export interface SessionRow {
   revision_count: number;
   feedbacks: Session["feedbacks"];
   mode_input: Session["modeInput"] | null;
+  clarifications: Session["clarifications"] | null;
+  clarification_round: number;
   created_at: string;
   updated_at: string;
 }
@@ -146,6 +148,8 @@ export function buildSessionRow(
     revision_count: session.revisionCount || 0,
     feedbacks: session.feedbacks || [],
     mode_input: session.modeInput || null,
+    clarifications: session.clarifications || null,
+    clarification_round: session.clarificationRound || 0,
     created_at: session.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -182,6 +186,8 @@ export function mapRowToSession(row: SessionRow, techSpec: string): Session {
     prdRevisions: row.prd_revisions || [],
     revisionCount: row.revision_count || 0,
     feedbacks: row.feedbacks || [],
+    clarifications: row.clarifications || undefined,
+    clarificationRound: row.clarification_round || undefined,
     generatedCommand: row.claude_command || undefined,
     prototypeHtml: row.html_ui || undefined,
     harness,
