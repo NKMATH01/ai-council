@@ -1,0 +1,22 @@
+{
+  "functions": {
+    "src/app/api/plan-harness/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/debate/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/clarify/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/synthesize/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/generate-command/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/generate-ui/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}
