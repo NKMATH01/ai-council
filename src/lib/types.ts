@@ -58,10 +58,19 @@ export interface FixInput {
 export type ModeInput = ConsultInput | ExtendInput | FixInput | null;
 
 // ===== 아이디어 구체화 Q&A =====
+export interface ParsedQuestion {
+  index: number;
+  text: string;
+  reason: string;
+  type: "open" | "choice";
+  options?: string[];       // 객관식 선택지
+}
+
 export interface ClarificationQA {
   id: string;
   roleId: DebateRoleId;
   questions: string;
+  parsedQuestions?: ParsedQuestion[];  // 파싱된 구조화 질문
   answers: string;
   round: number;
   timestamp: number;

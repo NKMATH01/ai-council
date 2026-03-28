@@ -14,6 +14,7 @@ import type { HarnessInputArtifacts } from "@/lib/types";
 import { buildPreviousHarnessSummary } from "@/lib/harness-summary";
 import { createSnapshot, pushSnapshot } from "@/lib/harness-diff";
 import { mergeAttempts } from "@/lib/harness-attempts";
+import { parseQuestions } from "@/lib/parse-questions";
 
 const initialState: DebateState = {
   topic: "",
@@ -1173,6 +1174,7 @@ export function useDebate() {
         id: genId(),
         roleId,
         questions,
+        parsedQuestions: parseQuestions(questions),
         answers: "",
         round,
         timestamp: Date.now(),
