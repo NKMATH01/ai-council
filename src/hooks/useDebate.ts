@@ -55,39 +55,58 @@ export function useDebate() {
   const stateRef = useRef<DebateState>(initialState);
   stateRef.current = state;
 
-  // ===== 스트림 fetch 헬퍼 =====
+  // ===== 스트림 fetch 헬퍼 (네트워크 에러 시 1회 자동 재시도) =====
   const fetchStream = async (
     url: string, body: any, onChunk: (t: string) => void,
   ): Promise<string> => {
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    let full = "";
-    try {
-      const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "API 요청 실패" }));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("스트림 읽기 실패");
-    const dec = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      full += dec.decode(value, { stream: true });
-      onChunk(full);
-    }
-      return full;
-    } finally {
-      if (abortRef.current === ctrl) {
-        abortRef.current = null;
+    const attempt = async (retry: boolean): Promise<string> => {
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      let full = "";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "API 요청 실패" }));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("스트림 읽기 실패");
+        const dec = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          full += dec.decode(value, { stream: true });
+          onChunk(full);
+        }
+        return full;
+      } catch (e: any) {
+        if (e.name === "AbortError") throw e;
+        // 네트워크 에러 + 재시도 가능 → 1회 자동 재시도
+        if (retry && isNetworkError(e)) {
+          await new Promise((r) => setTimeout(r, 2000));
+          onChunk(""); // 스트림 리셋
+          return attempt(false);
+        }
+        throw e;
+      } finally {
+        if (abortRef.current === ctrl) {
+          abortRef.current = null;
+        }
       }
-    }
+    };
+    return attempt(true);
+  };
+
+  const isNetworkError = (e: any): boolean => {
+    const msg = (e?.message || "").toLowerCase();
+    return msg.includes("fetch") || msg.includes("network") ||
+      msg.includes("failed to fetch") || msg.includes("aborted") === false &&
+      (msg.includes("timeout") || msg.includes("econnreset") || msg.includes("socket"));
   };
 
   // ===== 세션 저장 =====
@@ -1411,6 +1430,118 @@ export function useDebate() {
     setStreamLabel("");
   }, []);
 
+  // ===== 에러에서 이어서 계속 =====
+  const retryFromError = useCallback(async () => {
+    const snap = stateRef.current;
+    if (snap.status !== "error") return;
+
+    // 에러 초기화
+    setState((p) => ({ ...p, error: undefined }));
+
+    const cmd = snap.command;
+
+    // ideate 모드: 마지막 성공 지점 감지 후 재개
+    if (cmd === "ideate") {
+      const hasAnsweredClarifications = snap.clarifications.some((q) => q.answers);
+      const hasMessages = snap.messages.length > 0;
+      const hasPrd = !!snap.prd;
+
+      if (!hasAnsweredClarifications && snap.clarifications.length < IDEATE_CLARIFY_ROLES.length) {
+        // 질문 생성 중 실패 → 질문 재생성
+        try {
+          setState((p) => ({ ...p, status: "clarifying" }));
+          await runClarificationRound(snap, snap.clarificationRound || 1, []);
+        } catch (e: any) {
+          if (e.name === "AbortError") return;
+          setState((p) => ({ ...p, status: "error", error: e.message }));
+        }
+        return;
+      }
+
+      if (hasAnsweredClarifications && !hasMessages) {
+        // 답변 후 토론 시작 중 실패 → 토론 재시작
+        const clarifiedContext = buildClarifiedContext(snap.clarifications);
+        const enrichedTopic = `${snap.topic}\n\n## 전문가 질문을 통해 구체화된 내용\n${clarifiedContext}`;
+        const debateSnap = { ...snap, topic: enrichedTopic };
+        const allMessages: DebateMessage[] = [];
+
+        try {
+          setState((p) => ({ ...p, status: "debating" }));
+          await runDebateFlow(debateSnap, allMessages);
+
+          setState((p) => ({ ...p, status: "debating_user_perspective" as DebateStatus }));
+          setStreamLabel("사용자 관점 토론 중...");
+
+          for (const roleId of IDEATE_UX_ROLES.filter((r) => r !== "moderator")) {
+            setStreamRoleId(roleId);
+            setStreamText("");
+            const content = await fetchStream("/api/debate", {
+              roleId, topic: enrichedTopic, stage: "user_perspective",
+              confirmedRoles: IDEATE_UX_ROLES, history: allMessages,
+              debateEngine: snap.debateEngine, command: "ideate",
+            }, (t) => setStreamText(t));
+            setStreamText(""); setStreamRoleId(null);
+            allMessages.push({ id: `user_perspective-${roleId}-${Date.now()}`, roleId, stage: "user_perspective", content, timestamp: Date.now() });
+            setState((p) => ({ ...p, messages: [...allMessages] }));
+          }
+
+          setStreamRoleId("moderator"); setStreamText("");
+          const modContent = await fetchStream("/api/debate", {
+            roleId: "moderator", topic: enrichedTopic, stage: "user_perspective",
+            confirmedRoles: IDEATE_UX_ROLES, history: allMessages,
+            debateEngine: snap.debateEngine, command: "ideate",
+          }, (t) => setStreamText(t));
+          setStreamText(""); setStreamRoleId(null);
+          allMessages.push({ id: `user_perspective-moderator-${Date.now()}`, roleId: "moderator", stage: "user_perspective", content: modContent, timestamp: Date.now() });
+          setState((p) => ({ ...p, messages: [...allMessages] }));
+          setStreamLabel("");
+
+          await generatePrd(enrichedTopic, allMessages, { ...stateRef.current, messages: allMessages, topic: enrichedTopic });
+        } catch (e: any) {
+          if (e.name === "AbortError") return;
+          setState((p) => ({ ...p, status: "error", error: e.message }));
+        }
+        return;
+      }
+
+      if (hasMessages && !hasPrd) {
+        // 토론 완료 후 PRD 생성 중 실패 → PRD만 재생성
+        const clarifiedContext = buildClarifiedContext(snap.clarifications);
+        const enrichedTopic = `${snap.topic}\n\n## 전문가 질문을 통해 구체화된 내용\n${clarifiedContext}`;
+        try {
+          await generatePrd(enrichedTopic, snap.messages, { ...snap, topic: enrichedTopic });
+        } catch (e: any) {
+          if (e.name === "AbortError") return;
+          setState((p) => ({ ...p, status: "error", error: e.message }));
+        }
+        return;
+      }
+
+      // 그 외: 완전 재시작 불가능한 상태 → 질문 답변 화면으로 복귀
+      if (snap.clarifications.length > 0 && !hasAnsweredClarifications) {
+        setState((p) => ({ ...p, status: "awaiting_clarification" }));
+        return;
+      }
+    }
+
+    // quick, deep, debate 등 일반 모드: 토론 재시작
+    if (["quick", "deep", "debate", "consult", "extend", "fix"].includes(cmd || "")) {
+      const allMessages: DebateMessage[] = [];
+      try {
+        setState((p) => ({ ...p, status: "debating", messages: [] }));
+        await runDebateFlow(snap, allMessages);
+        if (["quick", "deep"].includes(cmd || "")) {
+          await generatePrd(snap.topic, allMessages, { ...snap, messages: allMessages });
+        } else {
+          setState((p) => ({ ...p, status: "awaiting_verification" }));
+        }
+      } catch (e: any) {
+        if (e.name === "AbortError") return;
+        setState((p) => ({ ...p, status: "error", error: e.message }));
+      }
+    }
+  }, []);
+
   const resetDebate = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -1446,5 +1577,6 @@ export function useDebate() {
     loadSession,
     stopDebate,
     resetDebate,
+    retryFromError,
   };
 }

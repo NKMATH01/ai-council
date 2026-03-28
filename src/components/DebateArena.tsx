@@ -35,7 +35,7 @@ export default function DebateArena() {
     handleVerificationChoice,
     submitFeedbackAndRefine,
     generateCommand, generatePrototype, refinePrototype,
-    loadSession, stopDebate, resetDebate,
+    loadSession, stopDebate, resetDebate, retryFromError,
   } = useDebate();
 
   const [skipUi, setSkipUi] = useState(false);
@@ -410,6 +410,23 @@ export default function DebateArena() {
               <div>{state.error}</div>
               {isHarnessMode && state.error === "사용자에 의해 중단됨" && state.harness && state.harness.attempts.length > 0 && (
                 <div className="text-xs text-text-muted mt-1">부분 결과가 저장되었습니다. 서버에서 이미 시작된 LLM 호출은 완료될 때까지 계속될 수 있습니다.</div>
+              )}
+              {state.error !== "사용자에 의해 중단됨" && (
+                <div className="flex items-center gap-3 mt-3">
+                  <button
+                    onClick={retryFromError}
+                    className="px-4 py-2 text-xs font-semibold bg-accent text-white rounded-lg hover:bg-accent/90 transition-all active:scale-[0.97]"
+                  >
+                    이어서 계속
+                  </button>
+                  <button
+                    onClick={resetDebate}
+                    className="px-4 py-2 text-xs font-medium border border-border-light text-text-secondary rounded-lg hover:bg-bg-muted transition-all"
+                  >
+                    처음부터 다시
+                  </button>
+                  <span className="text-[10px] text-text-muted">네트워크 에러인 경우 자동으로 1회 재시도합니다</span>
+                </div>
               )}
             </div>
           )}
