@@ -5,7 +5,7 @@ import {
   DebateState, DebateStatus, DebateMessage, DebateRoleId,
   VerificationProvider, Session,
 } from "@/lib/types";
-import { CLARIFY_PHASE_ROLES, IDEATE_UX_ROLES } from "@/lib/constants";
+import { CLARIFY_PHASE_ROLES, CLARIFY_PHASE_ORDER, IDEATE_UX_ROLES } from "@/lib/constants";
 import { TopicSubmitData } from "@/components/TopicInput";
 import { buildSessionFromState } from "@/lib/session-mappers";
 import { debateReducer, initialState } from "@/lib/debate-reducer";
@@ -211,7 +211,11 @@ export function useDebate() {
           feedbacks: s.feedbacks || [],
           clarifications: s.clarifications || [],
           clarificationRound: s.clarificationRound || 0,
-          clarificationPhase: "vision",
+          clarificationPhase: (() => {
+            const saved = (s as any).clarificationPhase || "vision";
+            // resolution phase가 제거됐으므로 마지막 유효 phase로 보정
+            return CLARIFY_PHASE_ORDER.includes(saved) ? saved : CLARIFY_PHASE_ORDER[CLARIFY_PHASE_ORDER.length - 1] || "vision";
+          })(),
           harness: s.harness || undefined,
           activeWorkflow: s.activeWorkflow || undefined,
           harnessRunCount: s.harness?.runCount || undefined,
@@ -221,9 +225,16 @@ export function useDebate() {
           prototypeHtml: s.prototypeHtml || "",
           // generating_plan 상태로 저장된 하네스 세션은 스트림이 이미 끊긴 stale 세션이므로
           // error로 전환하여 "멈춤"을 방지한다.
-          status: (s.activeWorkflow === "plan_harness" && s.status === "generating_plan"
-            ? "error"
-            : (s.status || "complete")) as DebateStatus,
+          status: (
+            // 하네스 stale 세션
+            s.activeWorkflow === "plan_harness" && s.status === "generating_plan"
+              ? "error"
+            // clarification이 제거된 phase(resolution)에서 stuck된 경우 → 답변 대기로 전환
+            : (s.status === "clarifying" || s.status === "awaiting_clarification") &&
+              (s as any).clarificationPhase && !CLARIFY_PHASE_ORDER.includes((s as any).clarificationPhase)
+              ? "awaiting_clarification"
+            : (s.status || "complete")
+          ) as DebateStatus,
           error: s.activeWorkflow === "plan_harness" && s.status === "generating_plan"
             ? "이전 실행이 완료되지 않은 세션입니다 (중단 또는 연결 끊김)"
             : undefined,
