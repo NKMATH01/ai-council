@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
-import { DebateRequest } from "@/lib/types";
 import { streamClaude, streamDebateEngine } from "@/lib/ai-stream";
 import { getRolePrompt, formatDebateHistory, formatModeInput } from "@/lib/prompts";
+import { DebateRequestSchema } from "@/lib/api-schemas";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body: DebateRequest = await request.json();
+    const body = DebateRequestSchema.parse(await request.json());
     const {
       roleId, topic, stage, confirmedRoles,
       history, feedback, isRefine = false,
@@ -52,9 +52,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    if (error?.name === "ZodError") {
+      console.error("Validation error:", error.issues);
+      return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     console.error("Debate API error:", error);
     return Response.json(
-      { error: error.message || "AI 응답 생성 중 오류가 발생했습니다." },
+      { error: "AI 응답 생성 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }

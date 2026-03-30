@@ -1,16 +1,16 @@
 import { NextRequest } from "next/server";
-import { GenerateCommandRequest } from "@/lib/types";
 import { streamClaude } from "@/lib/ai-stream";
 import {
   getCommandGenerationPrompt,
   getHarnessCommandPrompt, buildHarnessCommandUserMessage,
 } from "@/lib/prompts";
+import { GenerateCommandRequestSchema } from "@/lib/api-schemas";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body: GenerateCommandRequest = await request.json();
+    const body = GenerateCommandRequestSchema.parse(await request.json());
     const { topic, command, prd, modeInput, source, harnessArtifacts } = body;
 
     let systemPrompt: string;
@@ -40,9 +40,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    if (error?.name === "ZodError") {
+      console.error("Validation error:", error.issues);
+      return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     console.error("Generate command error:", error);
     return Response.json(
-      { error: error.message || "명령문 생성 중 오류가 발생했습니다." },
+      { error: "AI 응답 생성 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }

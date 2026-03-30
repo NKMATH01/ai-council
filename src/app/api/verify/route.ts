@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
-import { VerifyRequest } from "@/lib/types";
 import { streamVerification } from "@/lib/ai-stream";
 import { getVerificationPrompt, formatDebateHistory } from "@/lib/prompts";
 import { ROLE_POOL } from "@/lib/constants";
+import { VerifyRequestSchema } from "@/lib/api-schemas";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body: VerifyRequest = await request.json();
+    const body = VerifyRequestSchema.parse(await request.json());
     const { provider, topic, messages, confirmedRoles } = body;
 
     const systemPrompt = getVerificationPrompt(topic);
@@ -33,9 +33,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    if (error?.name === "ZodError") {
+      console.error("Validation error:", error.issues);
+      return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     console.error("Verify API error:", error);
     return Response.json(
-      { error: error.message || "검증 중 오류가 발생했습니다." },
+      { error: "AI 응답 생성 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }

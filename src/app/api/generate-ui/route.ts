@@ -1,16 +1,16 @@
 import { NextRequest } from "next/server";
-import { GenerateUiRequest } from "@/lib/types";
 import { streamGemini } from "@/lib/ai-stream";
 import {
   getUiPrototypePrompt, getUiRefinePrompt,
   getHarnessUiPrompt, buildHarnessUiUserMessage,
 } from "@/lib/prompts";
+import { GenerateUiRequestSchema } from "@/lib/api-schemas";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body: GenerateUiRequest = await request.json();
+    const body = GenerateUiRequestSchema.parse(await request.json());
     const { prd, existingHtml, modificationRequest, source, harnessArtifacts } = body;
 
     let systemPrompt: string;
@@ -42,9 +42,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    if (error?.name === "ZodError") {
+      console.error("Validation error:", error.issues);
+      return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     console.error("Generate UI error:", error);
     return Response.json(
-      { error: error.message || "UI 프로토타입 생성 중 오류가 발생했습니다." },
+      { error: "AI 응답 생성 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }

@@ -1,17 +1,17 @@
 import { NextRequest } from "next/server";
-import { SynthesizeRequest } from "@/lib/types";
 import { streamClaude } from "@/lib/ai-stream";
 import {
   getPrdPrompt, formatDebateHistory, formatModeInput,
   getHarnessPrdPrompt, buildHarnessPrdUserMessage,
 } from "@/lib/prompts";
 import { ROLE_POOL } from "@/lib/constants";
+import { SynthesizeRequestSchema } from "@/lib/api-schemas";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body: SynthesizeRequest = await request.json();
+    const body = SynthesizeRequestSchema.parse(await request.json());
     const {
       topic, messages, confirmedRoles,
       verificationResult, feedbacks,
@@ -101,9 +101,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    if (error?.name === "ZodError") {
+      console.error("Validation error:", error.issues);
+      return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     console.error("Synthesize API error:", error);
     return Response.json(
-      { error: error.message || "문서 생성 중 오류가 발생했습니다." },
+      { error: "AI 응답 생성 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }

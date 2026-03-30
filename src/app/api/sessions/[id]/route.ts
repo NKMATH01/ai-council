@@ -16,7 +16,8 @@ export async function GET(
     }
     return Response.json(session);
   } catch (error: any) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error("Sessions GET API error:", error);
+    return Response.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }
 
@@ -33,6 +34,7 @@ export async function DELETE(
     }
     return Response.json({ ok: true });
   } catch (error: any) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error("Sessions DELETE API error:", error);
+    return Response.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
-import { PlanHarnessRequest, PlanHarnessStreamEvent } from "@/lib/types";
+import { PlanHarnessStreamEvent } from "@/lib/types";
 import { runPlanHarness } from "@/lib/plan-harness";
+import { PlanHarnessRequestSchema } from "@/lib/api-schemas";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -22,23 +23,23 @@ export const maxDuration = 120;
  *   completed | error
  */
 export async function POST(req: NextRequest) {
-  let body: PlanHarnessRequest;
+  let body: ReturnType<typeof PlanHarnessRequestSchema.parse>;
   try {
-    body = await req.json();
-  } catch {
+    body = PlanHarnessRequestSchema.parse(await req.json());
+  } catch (parseError: any) {
+    const message = parseError?.name === "ZodError"
+      ? "잘못된 요청입니다."
+      : "Invalid request body";
+    if (parseError?.name === "ZodError") {
+      console.error("Validation error:", parseError.issues);
+    }
     return new Response(
-      JSON.stringify({ event: "error", message: "Invalid request body", attempts: [], timestamp: Date.now() }) + "\n",
+      JSON.stringify({ event: "error", message, attempts: [], timestamp: Date.now() }) + "\n",
       { status: 400, headers: ndjsonHeaders() },
     );
   }
 
   const { topic, command, modeInput, techSpec, referencePrd, revisionRequest, previousPlanSummary, models } = body;
-  if (!topic) {
-    return new Response(
-      JSON.stringify({ event: "error", message: "topic은 필수입니다", attempts: [], timestamp: Date.now() }) + "\n",
-      { status: 400, headers: ndjsonHeaders() },
-    );
-  }
 
   const encoder = new TextEncoder();
 
@@ -71,10 +72,11 @@ export async function POST(req: NextRequest) {
           { onEvent: send, signal: abortController.signal, models: models || undefined },
         );
       } catch (error: any) {
+        console.error("Plan harness API error:", error);
         if (!abortController.signal.aborted) {
           send({
             event: "error",
-            message: error.message || "Unknown error",
+            message: "AI 응답 생성 중 오류가 발생했습니다.",
             attempts: [],
             timestamp: Date.now(),
           });

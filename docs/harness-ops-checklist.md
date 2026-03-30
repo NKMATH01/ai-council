@@ -131,9 +131,31 @@
 
 ---
 
-## 배포 Blocker 기준
+## 보안/운영 배포 Blocker 기준
 
-아래 중 하나라도 발생하면 배포하지 마라.
+아래 중 하나라도 해당하면 배포하지 마라. 기능이 완벽해도 이 항목을 통과하지 못하면 배포 불가.
+
+### 인증/권한
+7. 인증 없이 데이터 CRUD가 가능한 API 엔드포인트 존재 (GET /api/sessions, DELETE /api/sessions/[id], GET /api/search)
+8. SERVICE_ROLE_KEY를 사용하는 API가 인증 없이 공개되어 있음
+
+### 에러 노출
+9. API 에러 응답에 error.message가 그대로 클라이언트에 전달됨 (내부 스택트레이스, DB 에러, API 키 관련 정보 유출 가능)
+
+### 환경변수
+10. 필수 환경변수(ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 누락 시 앱이 시작되지만 런타임에 알 수 없는 에러 발생
+
+### 입력 검증
+11. API route에서 요청 본문을 Zod 등으로 검증하지 않고 그대로 사용 (악의적 입력으로 예기치 않은 동작 유발 가능)
+
+### 배포 환경 보호
+12. Vercel Deployment Protection 또는 동등한 접근 제어가 활성화되지 않은 상태에서 공개 배포
+
+---
+
+## 기능 배포 Blocker 기준
+
+아래 중 하나라도 발생하면 배포하지 마라. (기능 정합성 기준)
 
 1. completed 이벤트 없이 generating_plan에 영구 정지
 2. aborted 후 completed 이벤트가 추가로 발생

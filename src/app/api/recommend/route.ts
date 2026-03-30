@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { callClaude } from "@/lib/ai-stream";
 import { getRecommendationPrompt } from "@/lib/prompts";
+import { RecommendRequestSchema } from "@/lib/api-schemas";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic } = await request.json();
+    const { topic } = RecommendRequestSchema.parse(await request.json());
 
     const systemPrompt = getRecommendationPrompt();
     const result = await callClaude(systemPrompt, topic);
@@ -17,9 +18,13 @@ export async function POST(request: NextRequest) {
 
     return Response.json(recommendation);
   } catch (error: any) {
+    if (error?.name === "ZodError") {
+      console.error("Validation error:", error.issues);
+      return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     console.error("Recommend API error:", error);
     return Response.json(
-      { error: error.message || "추천 분석 중 오류가 발생했습니다." },
+      { error: "AI 응답 생성 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }
