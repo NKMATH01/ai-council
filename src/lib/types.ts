@@ -13,6 +13,7 @@ export type DebateRoleId =
   | "cost_analyst"
   | "data_expert"
   | "ux_advocate"
+  | "planner"
   | "moderator";
 
 // ===== 검증 AI =====
@@ -57,6 +58,9 @@ export interface FixInput {
 
 export type ModeInput = ConsultInput | ExtendInput | FixInput | null;
 
+// ===== Clarification Phase =====
+export type ClarificationPhase = "vision" | "features" | "technical" | "resolution";
+
 // ===== 아이디어 구체화 Q&A =====
 export interface ParsedQuestion {
   index: number;
@@ -73,6 +77,7 @@ export interface ClarificationQA {
   parsedQuestions?: ParsedQuestion[];  // 파싱된 구조화 질문
   answers: string;
   round: number;
+  phase?: ClarificationPhase;  // NEW: which clarification phase this belongs to
   timestamp: number;
 }
 
@@ -142,6 +147,7 @@ export interface DebateState {
   feedbacks: FeedbackEntry[];
   clarifications: ClarificationQA[];
   clarificationRound: number;
+  clarificationPhase: ClarificationPhase;
   generatedCommand: string;
   prototypeHtml: string;
   harness?: PlanHarnessArtifacts;

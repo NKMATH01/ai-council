@@ -1,4 +1,4 @@
-import { DebateRoleId, DebateStageId, DebateMessage, DebateCommand, ModeInput, ConsultInput, ExtendInput, FixInput, ClarificationQA } from "./types";
+import { DebateRoleId, DebateStageId, DebateMessage, DebateCommand, ModeInput, ConsultInput, ExtendInput, FixInput, ClarificationQA, ClarificationPhase } from "./types";
 import { ROLE_POOL } from "./constants";
 
 // ===== 공통 규칙 =====
@@ -978,8 +978,167 @@ export function getClarificationPrompt(
   topic: string,
   previousQA: ClarificationQA[],
   round: number,
+  phase?: ClarificationPhase,
 ): string {
   const role = ROLE_POOL[roleId];
+
+  // ── Phase-based logic (new 4-phase flow) ──
+  if (phase) {
+    const previousPhaseContext = buildPreviousPhaseContext(previousQA);
+
+    switch (phase) {
+      case "vision":
+        return `당신은 📋 **기획 분석가** — 프로젝트 비전과 비즈니스 목표를 분석하는 전문가입니다.
+
+기획자가 아래 아이디어를 제시했습니다. 이 아이디어의 본질을 파악하기 위해 질문하세요.
+
+## 아이디어
+${topic}
+
+## 질문 방향
+- 왜 이 서비스를 만드는지 (기존 도구의 불편? 새로운 기회?)
+- 주요 사용자는 누구인지 (나 혼자? 팀? 일반 대중?)
+- 비슷한 서비스가 있다면 차별점은 무엇인지
+- 6개월 후 이 서비스의 성공 기준은 무엇인지
+- 비즈니스 모델이 있는지 (개인 도구? 수익화?)
+
+## 질문 규칙
+- 한국어로 질문
+- 핵심 질문 5-6개 (객관식 3-4개, 주관식 2개)
+- 기술적인 질문은 하지 마세요 — 비전과 목적에만 집중
+- 객관식: 선택지 3-5개 (가장 흔한 옵션들로 구성)
+- 각 질문에 왜 이 정보가 필요한지 괄호로 간단히 설명
+
+## 출력 형식 (반드시 이 형식을 지켜주세요)
+### 📋 기획 분석가의 질문
+
+1. [객관식] 질문 내용? _(이유)_
+   - a) 선택지 1
+   - b) 선택지 2
+   - c) 선택지 3
+
+2. [주관식] 질문 내용? _(이유)_
+
+## 중요
+- 객관식 선택지는 반드시 "- a) ", "- b) ", "- c) " 형식으로 작성
+- [객관식] 또는 [주관식] 태그를 반드시 포함`;
+
+      case "features":
+        return `당신은 ${role.emoji} **${role.koreanName}** (${role.description}) 전문가입니다.
+
+이전 비전 파악 단계에서 아래 내용이 확인되었습니다.
+
+## 아이디어
+${topic}
+
+## 이전 단계 답변
+${previousPhaseContext}
+
+## 질문 방향 (${role.koreanName} 관점)
+- 핵심 기능 3가지는 무엇인지
+- 각 기능의 사용자 시나리오 (어떤 순서로 사용하는지)
+- 1차 출시에 반드시 필요한 것 vs 나중에 추가할 것
+- 사용자 인증이 필요한지
+- 데이터 입력/출력의 구체적 형태
+
+## 질문 규칙
+- 한국어로 질문
+- ${role.koreanName} 관점에서 기능 구체화에 필요한 질문 4-5개
+- 객관식과 주관식을 섞어서 질문 (객관식 2-3개, 주관식 1-2개)
+- 이전 답변에서 이미 명확한 것은 다시 묻지 마세요
+
+## 출력 형식 (반드시 이 형식을 지켜주세요)
+### ${role.emoji} ${role.koreanName}의 질문
+
+1. [객관식] 질문 내용? _(이유)_
+   - a) 선택지 1
+   - b) 선택지 2
+   - c) 선택지 3
+
+2. [주관식] 질문 내용? _(이유)_
+
+## 중요
+- 객관식 선택지는 반드시 "- a) ", "- b) ", "- c) " 형식으로 작성
+- [객관식] 또는 [주관식] 태그를 반드시 포함`;
+
+      case "technical":
+        return `당신은 ${role.emoji} **${role.koreanName}** (${role.description}) 전문가입니다.
+
+비전과 기능이 구체화되었습니다. 이제 기술적 제약을 확인합니다.
+
+## 아이디어
+${topic}
+
+## 이전 단계 답변
+${previousPhaseContext}
+
+## 질문 방향 (${role.koreanName} 관점)
+${getClarifyFocus(roleId)}
+- 선호하는 기술 스택이 있는지
+- 동시 접속 사용자 규모
+- 외부 API 연동 필요 여부
+- 데이터 저장 방식과 규모
+- 배포 환경 (Vercel, AWS, 로컬 등)
+
+## 질문 규칙
+- 한국어로 질문
+- ${role.koreanName} 관점에서 기술 구현에 필요한 질문 4-5개
+- 객관식과 주관식을 섞어서 질문 (객관식 2-3개, 주관식 1-2개)
+- 비전/기능 질문은 하지 마세요 — 기술 제약에만 집중
+- 이전 답변에서 이미 명확한 것은 다시 묻지 마세요
+
+## 출력 형식 (반드시 이 형식을 지켜주세요)
+### ${role.emoji} ${role.koreanName}의 질문
+
+1. [객관식] 질문 내용? _(이유)_
+   - a) 선택지 1
+   - b) 선택지 2
+   - c) 선택지 3
+
+2. [주관식] 질문 내용? _(이유)_
+
+## 중요
+- 객관식 선택지는 반드시 "- a) ", "- b) ", "- c) " 형식으로 작성
+- [객관식] 또는 [주관식] 태그를 반드시 포함`;
+
+      case "resolution":
+        return `당신은 ⚖️ **중재자** — 모든 전문가 의견을 종합하고 갈림길을 정리하는 전문가입니다.
+
+지금까지 기획자와의 질문을 통해 아래 내용이 파악되었습니다.
+
+## 아이디어
+${topic}
+
+## 이전 단계 전체 답변
+${previousPhaseContext}
+
+## 임무
+1. 지금까지 답변을 정리하여 **프로젝트 요약**을 작성하세요:
+   - 목적 (1줄)
+   - 핵심 기능 (3-5개 bullet)
+   - 기술 스택 (확정된 것)
+   - 대상 사용자
+
+2. **아직 불명확한 지점**을 2-3개 찾아 질문하세요:
+   - 전문가들의 질문에서 답변이 모호했거나 상충되는 부분
+   - 기능 간 우선순위가 정해지지 않은 부분
+   - 기술적 결정이 필요한 부분
+
+## 출력 형식
+### 📋 프로젝트 요약
+(위 내용)
+
+### ❓ 최종 확인 질문
+1. [객관식] 질문 내용? _(이유)_
+   - a) 선택지 1
+   - b) 선택지 2
+   - c) 선택지 3
+
+2. [주관식] 질문 내용? _(이유)_`;
+    }
+  }
+
+  // ── Legacy behavior (no phase specified — backward compat) ──
   const roleSpecificFocus = getClarifyFocus(roleId);
 
   let prevContext = "";
@@ -1067,6 +1226,40 @@ ${prevContext}
 ## 중요
 - 객관식 선택지는 반드시 "- a) ", "- b) ", "- c) " 형식으로 작성
 - [객관식] 또는 [주관식] 태그를 반드시 포함`;
+}
+
+function buildPreviousPhaseContext(previousQA: ClarificationQA[]): string {
+  if (previousQA.length === 0) return "";
+
+  let context = "";
+  const phaseLabels: Record<string, string> = {
+    vision: "비전 파악",
+    features: "기능 구체화",
+    technical: "기술 제약",
+    resolution: "갈림길 정리",
+  };
+
+  // Group by phase
+  const byPhase = new Map<string, ClarificationQA[]>();
+  for (const qa of previousQA) {
+    const phase = qa.phase || "unknown";
+    if (!byPhase.has(phase)) byPhase.set(phase, []);
+    byPhase.get(phase)!.push(qa);
+  }
+
+  for (const [phase, qas] of byPhase) {
+    const label = phaseLabels[phase] || phase;
+    context += `\n### ${label} 단계\n`;
+    for (const qa of qas) {
+      const qaRole = ROLE_POOL[qa.roleId];
+      context += `\n**${qaRole.emoji} ${qaRole.koreanName}의 질문:**\n${qa.questions}\n`;
+      if (qa.answers) {
+        context += `\n**기획자 답변:**\n${qa.answers}\n`;
+      }
+    }
+  }
+
+  return context;
 }
 
 function getClarifyFocus(roleId: DebateRoleId): string {
@@ -1262,6 +1455,10 @@ export function getPrdPrompt(
 VIBE 코더(비전문가)가 바로 실행할 수 있도록 구체적으로 작성하세요.
 기술 용어에는 괄호 안에 쉬운 설명을 추가하세요.
 
+⚠️ PRD에 반드시 "구현 실행 계획" 섹션을 포함하세요.
+이 섹션이 없으면 PRD가 불완전합니다.
+Phase별 실행 순서, 검증 기준, Claude Code 실행 단위를 명확히 구분하세요.
+
 # ${topic} - ${docTitle} (개정판)
 
 ${modeSpecificSections}
@@ -1276,6 +1473,10 @@ ${modeSpecificSections}
 VIBE 코더(비전문가)가 바로 실행할 수 있도록 구체적으로 작성하세요.
 기술 용어에는 괄호 안에 쉬운 설명을 추가하세요.
 
+⚠️ PRD에 반드시 "구현 실행 계획" 섹션을 포함하세요.
+이 섹션이 없으면 PRD가 불완전합니다.
+Phase별 실행 순서, 검증 기준, Claude Code 실행 단위를 명확히 구분하세요.
+
 # ${topic} - ${docTitle}
 
 ${modeSpecificSections}`;
@@ -1285,7 +1486,7 @@ ${modeSpecificSections}`;
 // 명령문 생성 프롬프트
 // ========================================================
 export function getCommandGenerationPrompt(command?: DebateCommand): string {
-  const context = command === "fix" ? "구조 수정" : command === "extend" ? "기능 확장" : command === "consult" ? "개선 적용" : "프로젝트 생성";
+  const _context = command === "fix" ? "구조 수정" : command === "extend" ? "기능 확장" : command === "consult" ? "개선 적용" : "프로젝트 생성";
 
   return `당신은 Claude Code / Codex CLI 명령문 전문가입니다.
 
@@ -1295,22 +1496,34 @@ export function getCommandGenerationPrompt(command?: DebateCommand): string {
 - 한국어로 작성
 - Claude Code 또는 Codex에 그대로 복붙 가능한 형태
 - 파일 경로, 코드, 설정값을 구체적으로 포함
-- 단계별로 나눠서 작성 (한 번에 너무 많이 시키지 말 것)
-- 각 단계 앞에 "## Step N: [제목]" 형식 사용
+- "~해주세요" 형태의 자연어 명령으로 작성하세요. 코드만 나열하지 마세요.
 
-## 명령문 구조
+## 명령 분할 규칙
+- PRD의 "구현 실행 계획"에 따라 Phase별로 별도의 명령 블록을 생성하세요
+- 각 Phase 명령 블록에는:
+  1. Phase 번호와 이름
+  2. 이 Phase에서 할 작업 요약 (1-2줄)
+  3. Claude Code에 붙여넣을 구체적 명령문
+  4. 이 Phase 완료 후 검증할 항목
+
+## 출력 형식
+### Phase 1: [이름]
+**작업**: [요약]
 \`\`\`
-## Step 1: ${context} - 기본 구조
-[구체적 지시사항]
-
-## Step 2: 핵심 기능 구현
-[구체적 지시사항]
-
-## Step 3: 마무리
-[구체적 지시사항]
+[Claude Code 명령문]
 \`\`\`
+**검증**: [확인할 것]
 
-주의: "~해주세요" 형태의 자연어 명령으로 작성하세요. 코드만 나열하지 마세요.`;
+### Phase 2: [이름]
+**작업**: [요약]
+\`\`\`
+[Claude Code 명령문]
+\`\`\`
+**검증**: [확인할 것]
+
+(Phase별로 반복)
+
+주의: 한 Phase에 너무 많은 작업을 넣지 마세요. Phase 단위로 나눠서 실행합니다.`;
 }
 
 // ========================================================
@@ -1351,6 +1564,28 @@ export function getUiRefinePrompt(): string {
 - 설명 없이 HTML 코드만 출력`;
 }
 
+function getExecutionPlanSection(startNum: number): string {
+  return `## ${startNum}. 구현 실행 계획
+
+### Phase별 구현 순서
+각 Phase에 대해:
+- **Phase N: [이름]**
+  - 목표: [이 Phase에서 달성할 것]
+  - 수정/생성 파일 목록
+  - 예상 작업량: [소/중/대]
+  - 선행 조건: [이전 Phase가 완료되어야 하는 이유]
+
+### Phase별 검증 기준
+각 Phase 완료 시 확인할 체크리스트:
+- Phase 1: [ ] 검증항목1, [ ] 검증항목2
+- Phase 2: [ ] 검증항목1, [ ] 검증항목2
+- ...
+
+### Claude Code 실행 순서
+Phase별로 Claude Code에 전달할 작업 단위를 구분하세요.
+한 번에 너무 많은 작업을 시키지 마세요 — Phase 단위로 나눠서 실행합니다.`;
+}
+
 function getModeSpecificPrdSections(command?: DebateCommand): string {
   if (command === "consult") {
     return `## 1. 프로젝트 현황 요약
@@ -1359,7 +1594,9 @@ function getModeSpecificPrdSections(command?: DebateCommand): string {
 ## 4. 단기 개선 사항 (P1) — 1-2주
 ## 5. 장기 리팩토링 (P2)
 ## 6. 파일별 수정 가이드 (before/after)
-## 7. 주의사항`;
+## 7. 주의사항
+
+${getExecutionPlanSection(8)}`;
   }
 
   if (command === "extend") {
@@ -1369,7 +1606,9 @@ function getModeSpecificPrdSections(command?: DebateCommand): string {
 ## 4. API 변경/추가 (표)
 ## 5. 구현 순서 (체크리스트)
 ## 6. 테스트 시나리오
-## 7. 주의사항`;
+## 7. 주의사항
+
+${getExecutionPlanSection(8)}`;
   }
 
   if (command === "fix") {
@@ -1378,7 +1617,9 @@ function getModeSpecificPrdSections(command?: DebateCommand): string {
 ## 3. 파일별 수정 코드 (before → after)
 ## 4. 테스트 방법
 ## 5. 재발 방지
-## 6. Claude Code 실행 명령문`;
+## 6. Claude Code 실행 명령문
+
+${getExecutionPlanSection(7)}`;
   }
 
   if (command === "ideate") {
@@ -1392,7 +1633,9 @@ function getModeSpecificPrdSections(command?: DebateCommand): string {
 ## 8. 화면 구성 (페이지별 컴포넌트)
 ## 9. 사용자 경험(UX) 개선 사항 (토론 결과 반영)
 ## 10. 구현 로드맵 (Phase별 체크리스트)
-## 11. 위험 요소 + 대응책`;
+## 11. 위험 요소 + 대응책
+
+${getExecutionPlanSection(12)}`;
   }
 
   return `## 1. 프로젝트 개요 (목적, 타겟 사용자, 핵심 기능)
@@ -1404,7 +1647,9 @@ function getModeSpecificPrdSections(command?: DebateCommand): string {
 ## 7. 구현 로드맵 (Phase별 체크리스트)
 ## 8. 배포 전략 (명령어 포함)
 ## 9. 비용 예측 (표)
-## 10. 위험 요소 + 대응책`;
+## 10. 위험 요소 + 대응책
+
+${getExecutionPlanSection(11)}`;
 }
 
 // ========================================================
@@ -1424,6 +1669,10 @@ export function getHarnessPrdPrompt(topic: string, mode: "initial" | "refine" = 
 - 변경된 부분이 자연스럽게 전체 문서와 어우러지게 정리하라
 - 기술 용어에는 괄호 안에 쉬운 설명을 추가하라
 - 모든 섹션을 빠짐없이 완성하라
+
+⚠️ PRD에 반드시 "구현 실행 계획" 섹션을 포함하세요.
+이 섹션이 없으면 PRD가 불완전합니다.
+Phase별 실행 순서, 검증 기준, Claude Code 실행 단위를 명확히 구분하세요.
 
 # ${topic} — PRD (개정판)`;
   }
@@ -1448,6 +1697,10 @@ export function getHarnessPrdPrompt(topic: string, mode: "initial" | "refine" = 
 - VIBE 코더(비전문 개발자)가 바로 실행할 수 있을 만큼 구체적으로 작성하라
 - 기술 용어에는 괄호 안에 쉬운 설명을 추가하라
 
+⚠️ PRD에 반드시 "구현 실행 계획" 섹션을 포함하세요.
+이 섹션이 없으면 PRD가 불완전합니다.
+Phase별 실행 순서, 검증 기준, Claude Code 실행 단위를 명확히 구분하세요.
+
 # ${topic} — PRD (자동 계획 기반)
 
 ## 1. 프로젝트 개요 (목적, 타겟 사용자, 핵심 기능)
@@ -1461,7 +1714,27 @@ export function getHarnessPrdPrompt(topic: string, mode: "initial" | "refine" = 
 ## 9. 의존성 및 실행 순서
 ## 10. 인수 기준 (계획의 acceptanceCriteria + CPS의 successCriteria)
 ## 11. 위험 요소 + 대응책 (계획의 risks + 평가의 warnings)
-## 12. 불명확 사항 및 후속 확인 필요 항목`;
+## 12. 불명확 사항 및 후속 확인 필요 항목
+
+## 13. 구현 실행 계획
+
+### Phase별 구현 순서
+각 Phase에 대해:
+- **Phase N: [이름]**
+  - 목표: [이 Phase에서 달성할 것]
+  - 수정/생성 파일 목록
+  - 예상 작업량: [소/중/대]
+  - 선행 조건: [이전 Phase가 완료되어야 하는 이유]
+
+### Phase별 검증 기준
+각 Phase 완료 시 확인할 체크리스트:
+- Phase 1: [ ] 검증항목1, [ ] 검증항목2
+- Phase 2: [ ] 검증항목1, [ ] 검증항목2
+- ...
+
+### Claude Code 실행 순서
+Phase별로 Claude Code에 전달할 작업 단위를 구분하세요.
+한 번에 너무 많은 작업을 시키지 마세요 — Phase 단위로 나눠서 실행합니다.`;
 }
 
 export function buildHarnessPrdUserMessage(

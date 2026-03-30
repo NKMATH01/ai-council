@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ClarificationQA, DebateRoleId, ParsedQuestion } from "@/lib/types";
-import { ROLE_POOL } from "@/lib/constants";
+import { ClarificationQA, DebateRoleId, ParsedQuestion, ClarificationPhase } from "@/lib/types";
+import { ROLE_POOL, CLARIFY_PHASE_ORDER, CLARIFY_PHASE_LABELS } from "@/lib/constants";
 import { parseQuestions } from "@/lib/parse-questions";
 import Markdown from "react-markdown";
 
@@ -13,6 +13,7 @@ interface ClarificationPanelProps {
   currentStreamRoleId: DebateRoleId | null;
   currentStreamText: string;
   round: number;
+  currentPhase?: ClarificationPhase;
   onProceedToDebate: (answers: Record<string, string>) => void;
   onRequestMoreQuestions: (answers: Record<string, string>) => void;
 }
@@ -30,6 +31,7 @@ export default function ClarificationPanel({
   currentStreamRoleId,
   currentStreamText,
   round,
+  currentPhase,
   onProceedToDebate,
   onRequestMoreQuestions,
 }: ClarificationPanelProps) {
@@ -81,14 +83,25 @@ export default function ClarificationPanel({
     return parts.join("\n");
   };
 
+  // Filter clarifications to show current phase only
+  const currentPhaseClarifications = currentPhase
+    ? clarifications.filter((qa) => qa.phase === currentPhase)
+    : clarifications;
+
+  // Phase navigation helpers
+  const isLastPhase = currentPhase === "resolution" || !currentPhase;
+  const nextPhaseLabel = !isLastPhase && currentPhase
+    ? `다음: ${CLARIFY_PHASE_LABELS[CLARIFY_PHASE_ORDER[CLARIFY_PHASE_ORDER.indexOf(currentPhase) + 1]]?.title}`
+    : null;
+
   // Check all required questions answered
   const getQuestions = (roleId: DebateRoleId): ParsedQuestion[] => {
-    const qa = clarifications.find((c) => c.roleId === roleId && c.round === round);
+    const qa = currentPhaseClarifications.find((c) => c.roleId === roleId && c.round === round);
     return qa?.parsedQuestions ?? (qa?.questions ? parseQuestions(qa.questions) : []);
   };
 
   const rolesWithQuestions = clarifyRoles.filter((roleId) => {
-    const qa = clarifications.find((c) => c.roleId === roleId && c.round === round);
+    const qa = currentPhaseClarifications.find((c) => c.roleId === roleId && c.round === round);
     return qa && qa.questions;
   });
 
@@ -149,13 +162,56 @@ export default function ClarificationPanel({
         </div>
       </div>
 
+      {/* Phase Step Indicator */}
+      {currentPhase && (
+        <div className="mb-0 px-6 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            {CLARIFY_PHASE_ORDER.map((phase, idx) => {
+              const currentIdx = CLARIFY_PHASE_ORDER.indexOf(currentPhase);
+              const isCompleted = idx < currentIdx;
+              const isCurrent = idx === currentIdx;
+              const isPending = idx > currentIdx;
+              const label = CLARIFY_PHASE_LABELS[phase];
+
+              return (
+                <div key={phase} className="flex items-center gap-2 flex-1">
+                  <div className={`
+                    flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold shrink-0
+                    ${isCompleted ? "bg-green-500/20 text-green-400 border border-green-500/30" : ""}
+                    ${isCurrent ? "bg-accent/20 text-accent border border-accent/30" : ""}
+                    ${isPending ? "bg-white/5 text-white/30 border border-white/10" : ""}
+                  `}>
+                    {isCompleted ? "\u2713" : idx + 1}
+                  </div>
+                  <div className={`text-xs ${isCurrent ? "text-white" : "text-white/40"} hidden sm:block`}>
+                    {label.title}
+                  </div>
+                  {idx < CLARIFY_PHASE_ORDER.length - 1 && (
+                    <div className={`flex-1 h-px ${isCompleted ? "bg-green-500/30" : "bg-white/10"}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {/* Current phase description */}
+          <div className="text-center">
+            <span className="text-sm text-accent font-medium">
+              {CLARIFY_PHASE_LABELS[currentPhase].title}
+            </span>
+            <span className="text-xs text-white/50 ml-2">
+              — {CLARIFY_PHASE_LABELS[currentPhase].description}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Role cards */}
       <div className="px-6 py-4 space-y-4">
         {clarifyRoles.map((roleId) => {
           const role = ROLE_POOL[roleId];
           if (!role) return null;
 
-          const qa = clarifications.find(
+          const qa = currentPhaseClarifications.find(
             (c) => c.roleId === roleId && c.round === round
           );
           const isStreamingThis =
@@ -281,13 +337,15 @@ export default function ClarificationPanel({
 
       {/* Action buttons */}
       <div className="px-6 py-4 bg-bg-warm border-t border-border-light flex flex-col sm:flex-row items-center gap-3 justify-end">
-        <button
-          onClick={handleSubmitAndMore}
-          disabled={!allAnswered || isGenerating}
-          className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold border border-border-light bg-bg-card text-text-primary hover:bg-bg-muted transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
-        >
-          {isGenerating ? "생성 중..." : "답변 제출 \u2192 후속 질문 받기"}
-        </button>
+        {!isLastPhase && (
+          <button
+            onClick={handleSubmitAndMore}
+            disabled={!allAnswered || isGenerating}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold border border-border-light bg-bg-card text-text-primary hover:bg-bg-muted transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
+          >
+            {isGenerating ? "생성 중..." : nextPhaseLabel ? `${nextPhaseLabel} \u2192` : "답변 제출 \u2192 후속 질문 받기"}
+          </button>
+        )}
         <button
           onClick={handleSubmitAndProceed}
           disabled={!allAnswered || isGenerating}
@@ -295,7 +353,9 @@ export default function ClarificationPanel({
         >
           {isGenerating
             ? "생성 중..."
-            : "답변 제출 \u2192 개발계획 토론 시작"}
+            : isLastPhase
+            ? "토론 시작 \u2192"
+            : "건너뛰고 토론 시작"}
         </button>
       </div>
     </div>

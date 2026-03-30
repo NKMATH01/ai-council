@@ -132,6 +132,19 @@ export const ROLE_POOL: Record<
     badgeText: "text-role-ux",
     borderColor: "border-role-ux/20",
   },
+  planner: {
+    id: "planner",
+    emoji: "\u{1F4CB}",
+    name: "Planner",
+    koreanName: "기획 분석가",
+    description: "비전, 사용자, 비즈니스 목표 분석",
+    alwaysInclude: false,
+    condition: "ideate 모드",
+    dotColor: "bg-role-creative",
+    badgeBg: "bg-role-creative-bg",
+    badgeText: "text-role-creative",
+    borderColor: "border-role-creative/20",
+  },
   moderator: {
     id: "moderator",
     emoji: "\u2696\uFE0F",
@@ -154,7 +167,24 @@ export const DEEP_ROLES: DebateRoleId[] = [
 export const CONSULT_ROLES: DebateRoleId[] = ["architect", "critic", "creative", "moderator"];
 export const FIX_ROLES: DebateRoleId[] = ["critic", "architect", "moderator"];
 
-// /ideate 모드 역할
+// /ideate 모드 phase별 clarification 역할
+export const CLARIFY_PHASE_ROLES: Record<import("./types").ClarificationPhase, DebateRoleId[]> = {
+  vision: ["planner"],
+  features: ["architect", "ux_advocate"],
+  technical: ["backend", "frontend", "data_expert"],
+  resolution: ["moderator"],
+};
+
+export const CLARIFY_PHASE_ORDER: import("./types").ClarificationPhase[] = ["vision", "features", "technical", "resolution"];
+
+export const CLARIFY_PHASE_LABELS: Record<import("./types").ClarificationPhase, { title: string; description: string }> = {
+  vision: { title: "비전 파악", description: "왜 만드는지, 누구를 위한 건지" },
+  features: { title: "기능 구체화", description: "핵심 기능, 우선순위, 사용 시나리오" },
+  technical: { title: "기술 제약 확인", description: "스택, 성능, 보안, 배포 환경" },
+  resolution: { title: "갈림길 정리", description: "모호한 지점 최종 확인" },
+};
+
+// Legacy: 이전 단일 라운드 clarification용. 새 phase 기반은 CLARIFY_PHASE_ROLES 사용.
 export const IDEATE_CLARIFY_ROLES: DebateRoleId[] = ["data_expert", "backend", "frontend"];
 export const IDEATE_DEBATE_ROLES: DebateRoleId[] = ["data_expert", "backend", "frontend", "architect", "critic", "moderator"];
 export const IDEATE_UX_ROLES: DebateRoleId[] = ["ux_advocate", "frontend", "creative", "moderator"];

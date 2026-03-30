@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDebate } from "@/hooks/useDebate";
-import { DebateStageId, Session } from "@/lib/types";
-import { STAGE_LABELS, MODE_INFO, getEngineLabel, IDEATE_CLARIFY_ROLES } from "@/lib/constants";
+import { DebateStageId } from "@/lib/types";
+import { MODE_INFO, getEngineLabel, IDEATE_CLARIFY_ROLES } from "@/lib/constants";
 import { TopicSubmitData } from "@/components/TopicInput";
 import StatusCards from "./StatusCards";
 import TopicInput from "./TopicInput";
@@ -77,7 +77,7 @@ export default function DebateArena() {
   ) as DebateStageId[];
 
   // 하네스 진행 단계: 서버가 실제로 보낸 stage_started 기준
-  const harnessStageSequence = ["normalize", "cps", "generate", "lint", "evaluate", "repair"] as const;
+  const _harnessStageSequence = ["normalize", "cps", "generate", "lint", "evaluate", "repair"] as const;
   const harnessStageLabels: Record<string, string> = {
     normalize: "요구사항 정규화",
     cps: "CPS 분석",
@@ -345,6 +345,7 @@ export default function DebateArena() {
               currentStreamRoleId={state.status === "clarifying" ? streamRoleId : null}
               currentStreamText={state.status === "clarifying" ? streamText : ""}
               round={state.clarificationRound}
+              currentPhase={state.clarificationPhase}
               onProceedToDebate={(answers) => submitClarificationAndDebate(answers)}
               onRequestMoreQuestions={(answers) => submitClarificationAndAskMore(answers)}
             />
