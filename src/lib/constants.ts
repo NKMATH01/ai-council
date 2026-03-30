@@ -175,7 +175,7 @@ export const CLARIFY_PHASE_ROLES: Record<import("./types").ClarificationPhase, D
   resolution: ["moderator"],
 };
 
-export const CLARIFY_PHASE_ORDER: import("./types").ClarificationPhase[] = ["vision", "features", "technical", "resolution"];
+export const CLARIFY_PHASE_ORDER: import("./types").ClarificationPhase[] = ["vision", "features", "technical"];
 
 export const CLARIFY_PHASE_LABELS: Record<import("./types").ClarificationPhase, { title: string; description: string }> = {
   vision: { title: "비전 파악", description: "왜 만드는지, 누구를 위한 건지" },
