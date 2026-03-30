@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDebate } from "@/hooks/useDebate";
 import { DebateStageId } from "@/lib/types";
-import { MODE_INFO, getEngineLabel, IDEATE_CLARIFY_ROLES } from "@/lib/constants";
+import { MODE_INFO, getEngineLabel, IDEATE_CLARIFY_ROLES, CLARIFY_PHASE_ROLES } from "@/lib/constants";
 import { TopicSubmitData } from "@/components/TopicInput";
 import StatusCards from "./StatusCards";
 import TopicInput from "./TopicInput";
@@ -340,7 +340,7 @@ export default function DebateArena() {
           {state.command === "ideate" && (state.status === "clarifying" || state.status === "awaiting_clarification" || state.clarifications.length > 0) && (
             <ClarificationPanel
               clarifications={state.clarifications}
-              clarifyRoles={IDEATE_CLARIFY_ROLES}
+              clarifyRoles={state.clarificationPhase ? CLARIFY_PHASE_ROLES[state.clarificationPhase] : IDEATE_CLARIFY_ROLES}
               isGenerating={state.status === "clarifying"}
               currentStreamRoleId={state.status === "clarifying" ? streamRoleId : null}
               currentStreamText={state.status === "clarifying" ? streamText : ""}
