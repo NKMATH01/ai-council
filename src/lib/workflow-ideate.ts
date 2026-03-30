@@ -39,6 +39,7 @@ export async function startIdeate(ctx: WorkflowContext, data: TopicSubmitData) {
     createdAt,
   };
   ctx.dispatch({ type: "INIT_SESSION", state: snap });
+  await ctx.save(snap, "clarifying");
 
   try {
     await runClarificationPhase(ctx, snap, "vision", []);
@@ -92,6 +93,8 @@ export async function runClarificationPhase(
   }
 
   ctx.dispatch({ type: "SET_CLARIFICATIONS", clarifications: [...previousQA, ...newQAs], status: "awaiting_clarification" });
+  // 질문 생성 완료 시 저장 — 새로고침해도 질문이 유지됨
+  await ctx.save(ctx.stateRef.current, "awaiting_clarification");
 }
 
 // ===== 답변 제출 후 다음 Phase 진행 =====
@@ -107,6 +110,8 @@ export async function submitClarificationAndAskMore(ctx: WorkflowContext, answer
   });
 
   ctx.dispatch({ type: "SET_CLARIFICATIONS", clarifications: updatedQAs });
+  // 답변 제출 시 즉시 저장 — 새로고침해도 답변이 유지됨
+  await ctx.save(ctx.stateRef.current, "awaiting_clarification");
 
   // Find next phase
   const currentIdx = CLARIFY_PHASE_ORDER.indexOf(snap.clarificationPhase);
@@ -144,6 +149,8 @@ export async function submitClarificationAndDebate(ctx: WorkflowContext, answers
   });
 
   ctx.dispatch({ type: "SET_CLARIFICATIONS", clarifications: updatedQAs, status: "debating" });
+  // 토론 시작 전 최종 답변 저장
+  await ctx.save({ ...ctx.stateRef.current, clarifications: updatedQAs }, "debating");
 
   const updatedSnap = { ...snap, clarifications: updatedQAs };
 
