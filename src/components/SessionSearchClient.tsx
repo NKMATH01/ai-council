@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SessionSummary, DebateCommand } from "@/lib/types";
+import { SessionSummary } from "@/lib/types";
 
 const MODE_LABELS: Record<string, string> = {
   debate: "/debate",

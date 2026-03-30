@@ -52,7 +52,7 @@ ${reason.error}
 
     case "eval_failure": {
       const ev = reason.evaluation;
-      let ctx = `## 이전 시도 실패 원인: 평가 미통과 (score: ${ev.score}/100)
+      const ctx = `## 이전 시도 실패 원인: 평가 미통과 (score: ${ev.score}/100)
 
 ### 평가 결과:
 - 요구사항 반영률: ${ev.requirementCoverage}%

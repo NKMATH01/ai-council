@@ -5,6 +5,12 @@ import {
   getClaudeClient,
   getChatGPTClient,
 } from "./ai-clients";
+import {
+  createRequestId,
+  logAiStart,
+  logAiComplete,
+  logAiError,
+} from "./ai-logger";
 
 // ===== Claude 스트리밍 =====
 export async function streamClaude(
@@ -16,6 +22,10 @@ export async function streamClaude(
   const client = getClaudeClient();
   const modelId = useOpus ? MODELS.prd.modelId : MODELS.debate.modelId;
   const maxTokens = useOpus ? 16000 : 4096;
+
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  logAiStart({ requestId: reqId, model: modelId, provider: "anthropic", action: "streamClaude" });
 
   return new ReadableStream({
     async start(controller) {
@@ -69,8 +79,10 @@ export async function streamClaude(
           }
         }
 
+        logAiComplete(reqId, startedAt);
         controller.close();
       } catch (error) {
+        logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
         controller.error(error);
       }
     },
@@ -86,6 +98,10 @@ export async function streamClaudeModel(
 ): Promise<ReadableStream<Uint8Array>> {
   const encoder = new TextEncoder();
   const client = getClaudeClient();
+
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  logAiStart({ requestId: reqId, model: modelId, provider: "anthropic", action: "streamClaudeModel" });
 
   return new ReadableStream({
     async start(controller) {
@@ -105,8 +121,10 @@ export async function streamClaudeModel(
             controller.enqueue(encoder.encode(event.delta.text));
           }
         }
+        logAiComplete(reqId, startedAt);
         controller.close();
       } catch (error) {
+        logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
         controller.error(error);
       }
     },
@@ -118,16 +136,30 @@ export async function callClaude(
   systemPrompt: string,
   userMessage: string,
 ): Promise<string> {
-  const client = getClaudeClient();
-  const response = await client.messages.create({
-    model: MODELS.debate.modelId,
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
-  });
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  logAiStart({ requestId: reqId, model: MODELS.debate.modelId, provider: "anthropic", action: "callClaude" });
 
-  const block = response.content[0];
-  return block.type === "text" ? block.text : "";
+  try {
+    const client = getClaudeClient();
+    const response = await client.messages.create({
+      model: MODELS.debate.modelId,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    logAiComplete(reqId, startedAt, {
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
+
+    const block = response.content[0];
+    return block.type === "text" ? block.text : "";
+  } catch (error) {
+    logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
 }
 
 // ===== Claude 비스트리밍 (구조화된 JSON 출력) =====
@@ -143,20 +175,35 @@ export async function callClaudeStructured(
     throw new DOMException("AbortError", "AbortError");
   }
 
-  const client = getClaudeClient();
-  const response = await client.messages.create({
-    model: modelId || MODELS.prd.modelId,
-    max_tokens: maxTokens,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
-  });
+  const resolvedModel = modelId || MODELS.prd.modelId;
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  logAiStart({ requestId: reqId, model: resolvedModel, provider: "anthropic", action: "callClaudeStructured" });
 
-  if (signal?.aborted) {
-    throw new DOMException("AbortError", "AbortError");
+  try {
+    const client = getClaudeClient();
+    const response = await client.messages.create({
+      model: resolvedModel,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    if (signal?.aborted) {
+      throw new DOMException("AbortError", "AbortError");
+    }
+
+    logAiComplete(reqId, startedAt, {
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
+
+    const block = response.content[0];
+    return block.type === "text" ? block.text : "";
+  } catch (error) {
+    logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
+    throw error;
   }
-
-  const block = response.content[0];
-  return block.type === "text" ? block.text : "";
 }
 
 // ===== ChatGPT 스트리밍 =====
@@ -167,9 +214,14 @@ export async function streamChatGPT(
 ): Promise<ReadableStream<Uint8Array>> {
   const encoder = new TextEncoder();
   const client = getChatGPTClient();
+  const resolvedModel = modelId || MODELS.verification.chatgpt.modelId;
+
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  logAiStart({ requestId: reqId, model: resolvedModel, provider: "openai", action: "streamChatGPT" });
 
   const stream = await client.chat.completions.create({
-    model: modelId || MODELS.verification.chatgpt.modelId,
+    model: resolvedModel,
     stream: true,
     messages: [
       { role: "system", content: systemPrompt },
@@ -186,8 +238,10 @@ export async function streamChatGPT(
             controller.enqueue(encoder.encode(text));
           }
         }
+        logAiComplete(reqId, startedAt);
         controller.close();
       } catch (error) {
+        logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
         controller.error(error);
       }
     },
@@ -203,9 +257,14 @@ export async function streamGemini(
 ): Promise<ReadableStream<Uint8Array>> {
   const encoder = new TextEncoder();
   const client = getGeminiClient();
+  const resolvedModel = modelId || MODELS.verification.gemini.modelId;
+
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  logAiStart({ requestId: reqId, model: resolvedModel, provider: "google", action: "streamGemini" });
 
   const response = await client.models.generateContentStream({
-    model: modelId || MODELS.verification.gemini.modelId,
+    model: resolvedModel,
     contents: [{ role: "user", parts: [{ text: userMessage }] }],
     config: {
       systemInstruction: systemPrompt,
@@ -222,8 +281,10 @@ export async function streamGemini(
             controller.enqueue(encoder.encode(text));
           }
         }
+        logAiComplete(reqId, startedAt);
         controller.close();
       } catch (error) {
+        logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
         controller.error(error);
       }
     },

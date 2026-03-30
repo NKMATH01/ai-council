@@ -6,12 +6,10 @@ import { buildRepairContext, createAttempt, shouldRetry } from "./plan-retry";
 import {
   CpsDocument,
   DebateCommand,
-  GeneratedPlan,
   HarnessModelConfig,
   HarnessModelSettings,
   ModeInput,
   PlanAttempt,
-  PlanEvaluation,
   PlanHarnessArtifacts,
   PlanHarnessStreamEvent,
   PlanHarnessStage,

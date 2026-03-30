@@ -141,6 +141,7 @@ function createStateWithHarness(): DebateState {
     feedbacks: [],
     clarifications: [],
     clarificationRound: 0,
+    clarificationPhase: "vision",
     generatedCommand: "",
     prototypeHtml: "",
     harness: {
@@ -753,7 +754,7 @@ test("buildPreviousHarnessSummary handles empty artifacts gracefully", () => {
 test("rerun with revisionRequest includes previousPlanSummary in API call", async () => {
   // This test verifies the call shape by checking that the harness runner
   // receives previousPlanSummary when revisionRequest is present.
-  const calls: Array<{ systemPrompt: string; userMessage: string }> = [];
+  const _calls: Array<{ systemPrompt: string; userMessage: string }> = [];
   const requirementSpec = JSON.stringify({
     userIntent: "Revised plan",
     targetOutcome: "Better plan",

@@ -1,4 +1,4 @@
-import { GeneratedPlan, PlanEvaluation, HarnessRunSnapshot, PlanHarnessArtifacts } from "./types";
+import { HarnessRunSnapshot, PlanHarnessArtifacts } from "./types";
 
 export interface HarnessDiff {
   milestonesAdded: string[];
