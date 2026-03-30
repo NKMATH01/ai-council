@@ -96,23 +96,26 @@ export default function ClarificationPanel({
 
   // Check all required questions answered
   const getQuestions = (roleId: DebateRoleId): ParsedQuestion[] => {
-    const qa = currentPhaseClarifications.find((c) => c.roleId === roleId && c.round === round);
+    // Phase 기반: currentPhaseClarifications에서 역할 매칭 (round 무관)
+    const qa = currentPhaseClarifications.find((c) => c.roleId === roleId);
     return qa?.parsedQuestions ?? (qa?.questions ? parseQuestions(qa.questions) : []);
   };
 
   const rolesWithQuestions = clarifyRoles.filter((roleId) => {
-    const qa = currentPhaseClarifications.find((c) => c.roleId === roleId && c.round === round);
+    const qa = currentPhaseClarifications.find((c) => c.roleId === roleId);
     return qa && qa.questions;
   });
 
   const allAnswered =
     rolesWithQuestions.length > 0 &&
     rolesWithQuestions.every((roleId) => {
-      const pqs = getQuestions(roleId);
       const state = answerStates[roleId];
       if (!state) return false;
-      // 모든 질문에 답변이 있어야 함
-      return pqs.every((q) => state.selections[q.index]?.trim());
+      // 기타 텍스트가 있거나 하나 이상의 질문에 답변이 있으면 OK
+      const pqs = getQuestions(roleId);
+      const hasAnySelection = pqs.some((q) => state.selections[q.index]?.trim());
+      const hasEtcText = state.etcText?.trim();
+      return hasAnySelection || !!hasEtcText;
     });
 
   const handleSubmitAndMore = () => {
@@ -212,7 +215,7 @@ export default function ClarificationPanel({
           if (!role) return null;
 
           const qa = currentPhaseClarifications.find(
-            (c) => c.roleId === roleId && c.round === round
+            (c) => c.roleId === roleId
           );
           const isStreamingThis =
             isGenerating && currentStreamRoleId === roleId;
