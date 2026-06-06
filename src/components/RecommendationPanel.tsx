@@ -137,7 +137,7 @@ export default function RecommendationPanel({
         </div>
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-muted border border-border-light">
           <span className="text-xs font-semibold text-text-primary">
-            {recommendation.verificationAi === "chatgpt" ? "GPT-5.4" : "Gemini 3.1 Pro"}
+            {recommendation.verificationAi === "chatgpt" ? MODELS.verification.chatgpt.label : MODELS.verification.gemini.label}
           </span>
           <span className="text-[10px] text-text-muted">(토론 후 선택 가능)</span>
         </div>

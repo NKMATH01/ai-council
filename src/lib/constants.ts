@@ -1,4 +1,11 @@
 import { DebateRoleId, DebateEngineId, VerifyEngineId, VerificationProvider, DebateCommand } from "./types";
+import {
+  DEFAULT_DEBATE_MODEL,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_OPENAI_MODEL,
+  DEFAULT_PRD_MODEL,
+  getModelLabel,
+} from "./model-registry";
 
 // ===== 역할 풀 (8개) =====
 export const ROLE_POOL: Record<
@@ -166,6 +173,9 @@ export const DEEP_ROLES: DebateRoleId[] = [
 ];
 export const CONSULT_ROLES: DebateRoleId[] = ["architect", "critic", "creative", "moderator"];
 export const FIX_ROLES: DebateRoleId[] = ["critic", "architect", "moderator"];
+export const ACADEMY_ROLES: DebateRoleId[] = [
+  "planner", "data_expert", "ux_advocate", "cost_analyst", "critic", "moderator",
+];
 
 // /ideate 모드 phase별 clarification 역할
 export const CLARIFY_PHASE_ROLES: Record<import("./types").ClarificationPhase, DebateRoleId[]> = {
@@ -211,10 +221,10 @@ export const DEBATE_ENGINES: {
   description: string;
   modelId: string;
 }[] = [
-  { id: "claude-sonnet", label: "Claude Sonnet 4.6", description: "기본, 가성비 최고", modelId: "claude-sonnet-4-6" },
-  { id: "claude-opus", label: "Claude Opus 4.6", description: "복잡한 설계, 최고 품질", modelId: "claude-opus-4-6" },
-  { id: "gpt", label: "GPT-5.4", description: "다른 관점, 실행력 강점", modelId: "gpt-5.4" },
-  { id: "gemini", label: "Gemini 3.1 Pro", description: "가성비 + 추론 강점", modelId: "gemini-3.1-pro-preview" },
+  { id: "claude-sonnet", label: getModelLabel(DEFAULT_DEBATE_MODEL.model), description: "기본, 속도와 품질 균형", modelId: DEFAULT_DEBATE_MODEL.model },
+  { id: "claude-opus", label: getModelLabel(DEFAULT_PRD_MODEL.model), description: "복잡한 설계, 최고 품질", modelId: DEFAULT_PRD_MODEL.model },
+  { id: "gpt", label: getModelLabel(DEFAULT_OPENAI_MODEL.model), description: "다른 관점, 실행력 강점", modelId: DEFAULT_OPENAI_MODEL.model },
+  { id: "gemini", label: getModelLabel(DEFAULT_GEMINI_MODEL.model), description: "멀티모달 + 추론 강점", modelId: DEFAULT_GEMINI_MODEL.model },
 ];
 
 // ===== 검증 AI 옵션 =====
@@ -224,19 +234,19 @@ export const VERIFY_ENGINES: {
   description: string;
   condition?: string;
 }[] = [
-  { id: "chatgpt", label: "GPT-5.4", description: "추천" },
-  { id: "gemini", label: "Gemini 3.1 Pro", description: "" },
-  { id: "claude-opus", label: "Claude Opus 4.6", description: "토론 엔진이 Sonnet일 때만", condition: "claude-sonnet" },
+  { id: "chatgpt", label: getModelLabel(DEFAULT_OPENAI_MODEL.model), description: "추천" },
+  { id: "gemini", label: getModelLabel(DEFAULT_GEMINI_MODEL.model), description: "" },
+  { id: "claude-opus", label: getModelLabel(DEFAULT_PRD_MODEL.model), description: "토론 엔진이 Sonnet일 때만", condition: "claude-sonnet" },
   { id: "none", label: "검증 안 함", description: "" },
 ];
 
 // 모델 설정
 export const MODELS = {
-  debate: { modelId: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  prd: { modelId: "claude-opus-4-6", label: "Claude Opus 4.6" },
+  debate: { modelId: DEFAULT_DEBATE_MODEL.model, label: getModelLabel(DEFAULT_DEBATE_MODEL.model) },
+  prd: { modelId: DEFAULT_PRD_MODEL.model, label: getModelLabel(DEFAULT_PRD_MODEL.model) },
   verification: {
-    chatgpt: { modelId: "gpt-5.4", label: "GPT-5.4" },
-    gemini: { modelId: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
+    chatgpt: { modelId: DEFAULT_OPENAI_MODEL.model, label: getModelLabel(DEFAULT_OPENAI_MODEL.model) },
+    gemini: { modelId: DEFAULT_GEMINI_MODEL.model, label: getModelLabel(DEFAULT_GEMINI_MODEL.model) },
   },
 };
 
@@ -260,8 +270,8 @@ export const VERIFICATION_OPTIONS: {
   description: string;
   recommended: boolean;
 }[] = [
-  { id: "chatgpt", label: "GPT-5.4로 검증", description: "추천", recommended: true },
-  { id: "gemini", label: "Gemini 3.1 Pro로 검증", description: "", recommended: false },
+  { id: "chatgpt", label: `${MODELS.verification.chatgpt.label}로 검증`, description: "추천", recommended: true },
+  { id: "gemini", label: `${MODELS.verification.gemini.label}로 검증`, description: "", recommended: false },
   { id: null, label: "검증 건너뛰고 PRD 바로 생성", description: "", recommended: false },
   { id: "redebate", label: "특정 부분 재토론", description: "", recommended: false },
 ];
@@ -289,7 +299,7 @@ export const MODE_INFO: Record<DebateCommand, {
   label: string;
   shortLabel: string;
   description: string;
-  category: "설계" | "보완";
+  category: "설계" | "보완" | "운영";
 }> = {
   debate: { label: "새 프로젝트 설계 토론", shortLabel: "/debate", description: "AI가 역할 추천 → 토론 → PRD", category: "설계" },
   quick: { label: "빠른 3인 토론", shortLabel: "/quick", description: "설계자+비판자+중재자", category: "설계" },
@@ -298,6 +308,7 @@ export const MODE_INFO: Record<DebateCommand, {
   extend: { label: "기능 추가 설계", shortLabel: "/extend", description: "기존 프로그램에 기능 추가", category: "보완" },
   fix: { label: "구조 수정 AS", shortLabel: "/fix", description: "구조 문제 진단 및 수정", category: "보완" },
   ideate: { label: "아이디어 → 개발계획", shortLabel: "/ideate", description: "전문가 질문으로 아이디어 구체화 → 개발계획 수립", category: "설계" },
+  academy: { label: "학원 운영 토론", shortLabel: "/academy", description: "수강생 모집, 상담, 반 편성, 강사 운영, 재등록률, 매출까지 운영 관점으로 토론", category: "운영" },
 };
 
 // 엔진 라벨 헬퍼

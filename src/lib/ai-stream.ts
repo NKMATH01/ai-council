@@ -1,5 +1,6 @@
-import { VerificationProvider, DebateEngineId } from "./types";
+import { VerificationProvider, DebateEngineId, HarnessModelConfig } from "./types";
 import { MODELS, DEBATE_ENGINES } from "./constants";
+import { validateModelConfig } from "./model-registry";
 import {
   getGeminiClient,
   getClaudeClient,
@@ -198,12 +199,170 @@ export async function callClaudeStructured(
       outputTokens: response.usage?.output_tokens,
     });
 
-    const block = response.content[0];
-    return block.type === "text" ? block.text : "";
+    return response.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("");
   } catch (error) {
     logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
     throw error;
   }
+}
+
+export async function callOpenAIStructured(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number = 8192,
+  signal?: AbortSignal,
+  modelId?: string,
+): Promise<string> {
+  if (signal?.aborted) {
+    throw new DOMException("AbortError", "AbortError");
+  }
+
+  const resolvedModel = modelId || MODELS.verification.chatgpt.modelId;
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  const client = getChatGPTClient();
+  const useBackground = resolvedModel === "gpt-5.5-pro";
+
+  logAiStart({ requestId: reqId, model: resolvedModel, provider: "openai", action: "callOpenAIStructured" });
+
+  try {
+    let response = await client.responses.create({
+      model: resolvedModel,
+      instructions: systemPrompt,
+      input: userMessage,
+      max_output_tokens: maxTokens,
+      background: useBackground,
+      text: { format: { type: "json_object" } },
+    }, signal ? { signal } : undefined);
+
+    if (useBackground) {
+      response = await waitForOpenAIBackgroundResponse(client, response.id, signal);
+    }
+
+    if (signal?.aborted) {
+      throw new DOMException("AbortError", "AbortError");
+    }
+
+    if (response.status && response.status !== "completed") {
+      throw new Error(`OpenAI response did not complete: ${response.status}`);
+    }
+
+    logAiComplete(reqId, startedAt, {
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
+
+    return response.output_text?.trim() || "";
+  } catch (error) {
+    logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+
+export async function callGeminiStructured(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number = 8192,
+  signal?: AbortSignal,
+  modelId?: string,
+): Promise<string> {
+  if (signal?.aborted) {
+    throw new DOMException("AbortError", "AbortError");
+  }
+
+  const resolvedModel = modelId || MODELS.verification.gemini.modelId;
+  const reqId = createRequestId();
+  const startedAt = Date.now();
+  logAiStart({ requestId: reqId, model: resolvedModel, provider: "google", action: "callGeminiStructured" });
+
+  try {
+    const client = getGeminiClient();
+    const response = await client.models.generateContent({
+      model: resolvedModel,
+      contents: [{ role: "user", parts: [{ text: userMessage }] }],
+      config: {
+        systemInstruction: systemPrompt,
+        maxOutputTokens: maxTokens,
+        responseMimeType: "application/json",
+      },
+    });
+
+    if (signal?.aborted) {
+      throw new DOMException("AbortError", "AbortError");
+    }
+
+    logAiComplete(reqId, startedAt);
+    return response.text?.trim() || "";
+  } catch (error) {
+    logAiError(reqId, startedAt, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+
+export async function callStructuredModel(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number = 8192,
+  signal?: AbortSignal,
+  modelConfig?: HarnessModelConfig,
+): Promise<string> {
+  const resolvedConfig = modelConfig || { provider: "anthropic", model: MODELS.prd.modelId };
+  const validationError = validateModelConfig(resolvedConfig);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  switch (resolvedConfig.provider) {
+    case "anthropic":
+      return callClaudeStructured(systemPrompt, userMessage, maxTokens, signal, resolvedConfig.model);
+    case "openai":
+      return callOpenAIStructured(systemPrompt, userMessage, maxTokens, signal, resolvedConfig.model);
+    case "google":
+      return callGeminiStructured(systemPrompt, userMessage, maxTokens, signal, resolvedConfig.model);
+  }
+}
+
+async function waitForOpenAIBackgroundResponse(
+  client: ReturnType<typeof getChatGPTClient>,
+  responseId: string,
+  signal?: AbortSignal,
+) {
+  const maxPolls = 45;
+  for (let i = 0; i < maxPolls; i++) {
+    if (signal?.aborted) {
+      throw new DOMException("AbortError", "AbortError");
+    }
+
+    const response = await client.responses.retrieve(responseId, undefined, signal ? { signal } : undefined);
+    if (response.status === "completed") {
+      return response;
+    }
+    if (["failed", "cancelled", "incomplete"].includes(response.status || "")) {
+      throw new Error(`OpenAI background response ${responseId} ended with status: ${response.status}`);
+    }
+
+    await sleep(2000, signal);
+  }
+
+  throw new Error(`OpenAI background response ${responseId} did not complete before timeout`);
+}
+
+function sleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("AbortError", "AbortError"));
+      return;
+    }
+
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new DOMException("AbortError", "AbortError"));
+    }, { once: true });
+  });
 }
 
 // ===== ChatGPT 스트리밍 =====

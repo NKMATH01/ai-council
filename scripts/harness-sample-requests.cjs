@@ -28,7 +28,7 @@ const samples = {
     command: "debate",
     models: {
       generation: { provider: "anthropic", model: "claude-sonnet-4-6" },
-      evaluation: { provider: "anthropic", model: "claude-opus-4-6" },
+      evaluation: { provider: "anthropic", model: "claude-opus-4-8" },
     },
   },
 };

@@ -29,7 +29,7 @@
 기대 결과:
 - `started` → `stage_started(normalize)` → `attempt(normalize, success)` → `stage_started(cps)` → ... → `completed` 순서
 - 각 이벤트에 timestamp가 있음
-- attempt 이벤트의 model/provider가 기본값 `claude-opus-4-6` / `anthropic`
+- attempt 이벤트의 model/provider가 기본값 generation `claude-sonnet-4-6` / evaluation `claude-opus-4-8` / `anthropic`
 
 실패 시 확인:
 - 이벤트 순서가 올바른지 (started가 첫 줄, completed/error가 마지막)
@@ -124,10 +124,10 @@
 실행: 하네스 완료 후 PlanEvaluationPanel의 "실행 이력" 확인.
 
 기대 결과:
-- 각 attempt에 모델명이 괄호로 표시됨 (예: `(claude-opus-4-6)`)
+- 각 attempt에 모델명이 괄호로 표시됨 (예: `(claude-opus-4-8)`)
 - normalize/cps/generate → generation model
 - evaluate → evaluation model
-- 현재 기본값에서는 모두 `claude-opus-4-6`
+- 현재 기본값에서는 normalize/cps/generate/lint/repair는 `claude-sonnet-4-6`, evaluate는 `claude-opus-4-8`
 
 ---
 

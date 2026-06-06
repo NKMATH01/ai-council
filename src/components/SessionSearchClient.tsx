@@ -11,6 +11,7 @@ const MODE_LABELS: Record<string, string> = {
   consult: "/consult",
   extend: "/extend",
   fix: "/fix",
+  academy: "/academy",
 };
 
 interface Props {
@@ -111,6 +112,7 @@ export default function SessionSearchClient({ initialSessions }: Props) {
               <option value="consult">/consult</option>
               <option value="extend">/extend</option>
               <option value="fix">/fix</option>
+              <option value="academy">/academy</option>
             </select>
           </div>
           <div className="flex items-center gap-1.5">

@@ -5,6 +5,7 @@ import Markdown from "react-markdown";
 import { Session } from "@/lib/types";
 
 const DOC_TITLES: Record<string, string> = {
+  academy: "학원 운영 개선 보고서",
   consult: "의견 종합 보고서",
   extend: "기능 확장 계획서",
   fix: "구조 수정 계획서",
@@ -26,7 +27,7 @@ export default function SessionDetailClient({ session }: { session: Session }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const docPrefix = session.command === "consult" ? "report" : session.command === "extend" ? "extend-plan" : session.command === "fix" ? "fix-plan" : "prd";
+    const docPrefix = session.command === "academy" ? "academy-ops" : session.command === "consult" ? "report" : session.command === "extend" ? "extend-plan" : session.command === "fix" ? "fix-plan" : "prd";
     a.download = `${docPrefix}-v${displayVersion}.md`;
     a.click();
     URL.revokeObjectURL(url);

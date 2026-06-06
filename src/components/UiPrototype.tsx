@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { MODELS } from "@/lib/constants";
 
 interface UiPrototypeProps {
   html: string;
@@ -66,7 +67,7 @@ export default function UiPrototype({ html, isGenerating, onGenerate, onRefine, 
           <div className="flex items-center gap-2">
             <span className="text-base">🎨</span>
             <span className="text-sm font-bold text-text-primary">UI 프로토타입</span>
-            <span className="text-[10px] text-text-muted">(Gemini 3.1 Pro)</span>
+            <span className="text-[10px] text-text-muted">({MODELS.verification.gemini.label})</span>
           </div>
           <div className="flex gap-2">
             <button
@@ -97,7 +98,7 @@ export default function UiPrototype({ html, isGenerating, onGenerate, onRefine, 
           <div className="flex items-center gap-2">
             <span className="text-base">🎨</span>
             <span className="text-sm font-bold text-text-primary">UI 프로토타입</span>
-            <span className="text-[10px] text-text-muted">(Gemini 3.1 Pro 생성)</span>
+            <span className="text-[10px] text-text-muted">({MODELS.verification.gemini.label} 생성)</span>
           </div>
           {html && !isGenerating && (
             <div className="flex gap-1.5">

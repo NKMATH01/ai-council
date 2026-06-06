@@ -25,6 +25,7 @@ export default async function SessionDetailPage({
     consult: "/consult 전문가 의견",
     extend: "/extend 기능 추가",
     fix: "/fix 구조 수정",
+    academy: "/academy 학원 운영",
   };
 
   return (

@@ -23,6 +23,7 @@ import {
   startConsult as _startConsult,
   startExtend as _startExtend,
   startFix as _startFix,
+  startAcademy as _startAcademy,
   handleVerificationChoice as _handleVerificationChoice,
   submitFeedbackAndRefine as _submitFeedbackAndRefine,
   generateHarnessPrd as _generateHarnessPrd,
@@ -147,6 +148,9 @@ export function useDebate() {
 
   const startFix = useCallback(
     (data: TopicSubmitData) => _startFix(ctx, data), [ctx]);
+
+  const startAcademy = useCallback(
+    (data: TopicSubmitData) => _startAcademy(ctx, data), [ctx]);
 
   const startIdeate = useCallback(
     (data: TopicSubmitData) => _startIdeate(ctx, data), [ctx]);
@@ -356,7 +360,7 @@ export function useDebate() {
     }
 
     // quick, deep, debate 등 일반 모드: 토론 재시작
-    if (["quick", "deep", "debate", "consult", "extend", "fix"].includes(cmd || "")) {
+    if (["quick", "deep", "debate", "consult", "extend", "fix", "academy"].includes(cmd || "")) {
       const allMessages: DebateMessage[] = [];
       try {
         dispatch({ type: "UPDATE_HARNESS", updates: { status: "debating", messages: [] } });
@@ -394,6 +398,7 @@ export function useDebate() {
     startConsult,
     startExtend,
     startFix,
+    startAcademy,
     startIdeate,
     submitClarificationAndAskMore,
     submitClarificationAndDebate,

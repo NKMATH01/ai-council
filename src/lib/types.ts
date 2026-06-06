@@ -19,6 +19,9 @@ export type DebateRoleId =
 // ===== 검증 AI =====
 export type VerificationProvider = "chatgpt" | "gemini";
 
+// ===== AI provider =====
+export type AiProvider = "anthropic" | "openai" | "google";
+
 // ===== 토론 엔진 =====
 export type DebateEngineId = "claude-sonnet" | "claude-opus" | "gpt" | "gemini";
 
@@ -26,10 +29,13 @@ export type DebateEngineId = "claude-sonnet" | "claude-opus" | "gpt" | "gemini";
 export type VerifyEngineId = "chatgpt" | "gemini" | "claude-opus" | "none";
 
 // ===== 단축 명령어 =====
-export type DebateCommand = "quick" | "deep" | "debate" | "consult" | "extend" | "fix" | "ideate";
+export type DebateCommand = "quick" | "deep" | "debate" | "consult" | "extend" | "fix" | "ideate" | "academy";
 
 // ===== 토론 단계 =====
 export type DebateStageId = "independent" | "critique" | "final" | "clarify" | "user_perspective";
+
+// ===== 토론 절차 액션 =====
+export type DebateAction = "argue" | "rebut" | "judge";
 
 // ===== 모드별 입력 양식 =====
 export interface ConsultInput {
@@ -96,7 +102,12 @@ export interface DebateMessage {
   id: string;
   roleId: DebateRoleId;
   stage: DebateStageId;
+  action?: DebateAction;
   content: string;
+  confidence?: number;
+  needsMoreRounds?: boolean;
+  decisionReason?: string;
+  autoRerun?: boolean;
   timestamp: number;
 }
 
@@ -406,7 +417,7 @@ export type PlanHarnessStreamEvent =
   | { event: "aborted"; stage?: PlanHarnessStage; attempts: PlanAttempt[]; timestamp: number };
 
 export interface HarnessModelConfig {
-  provider: string;
+  provider: AiProvider;
   model: string;
 }
 

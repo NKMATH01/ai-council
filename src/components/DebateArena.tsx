@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDebate } from "@/hooks/useDebate";
 import { DebateStageId } from "@/lib/types";
-import { MODE_INFO, getEngineLabel, IDEATE_CLARIFY_ROLES, CLARIFY_PHASE_ROLES } from "@/lib/constants";
+import { MODELS, MODE_INFO, getEngineLabel, IDEATE_CLARIFY_ROLES, CLARIFY_PHASE_ROLES } from "@/lib/constants";
 import { TopicSubmitData } from "@/components/TopicInput";
 import StatusCards from "./StatusCards";
 import TopicInput from "./TopicInput";
@@ -29,7 +29,7 @@ export default function DebateArena() {
   const {
     state, streamText, streamRoleId, streamLabel,
     requestRecommendation, confirmAndStart,
-    startQuick, startDeep, startConsult, startExtend, startFix,
+    startQuick, startDeep, startConsult, startExtend, startFix, startAcademy,
     startIdeate, submitClarificationAndAskMore, submitClarificationAndDebate,
     startPlanHarness, rerunPlanHarness, generateHarnessPrd,
     handleVerificationChoice,
@@ -66,6 +66,7 @@ export default function DebateArena() {
       case "consult": startConsult(data); break;
       case "extend": startExtend(data); break;
       case "fix": startFix(data); break;
+      case "academy": startAcademy(data); break;
       case "ideate": startIdeate(data); break;
       case "debate": default: requestRecommendation(data); break;
     }
@@ -99,6 +100,32 @@ export default function DebateArena() {
       harnessVisitedStages.push(state.currentHarnessStage);
     }
   }
+
+  const harnessModelSummary = (() => {
+    const attempts = state.harness?.attempts || [];
+    const formatModel = (provider?: string, model?: string) => provider && model ? `${provider}/${model}` : model || "";
+    const generationModels = new Set(
+      attempts
+        .filter((a) => a.stage !== "evaluate")
+        .map((a) => formatModel(a.provider, a.model))
+        .filter(Boolean),
+    );
+    const evaluationModels = new Set(
+      attempts
+        .filter((a) => a.stage === "evaluate")
+        .map((a) => formatModel(a.provider, a.model))
+        .filter(Boolean),
+    );
+
+    if (generationModels.size === 0 && evaluationModels.size === 0) {
+      return `기본 생성: ${MODELS.debate.label}, 평가: ${MODELS.prd.label}`;
+    }
+
+    return [
+      generationModels.size > 0 ? `생성: ${[...generationModels].join(", ")}` : "",
+      evaluationModels.size > 0 ? `평가: ${[...evaluationModels].join(", ")}` : "",
+    ].filter(Boolean).join(" / ");
+  })();
 
   const allStages: { id: string; label: string }[] = isHarnessMode
     ? (harnessVisitedStages.length > 0
@@ -266,7 +293,7 @@ export default function DebateArena() {
                       {streamLabel || "자동 계획 파이프라인 시작 중..."}
                     </span>
                   </div>
-                  <p className="text-xs text-text-muted mt-2">Claude Opus 4.6 고정. 서버에서 단계별 진행 이벤트를 실시간 수신 중입니다.</p>
+                  <p className="text-xs text-text-muted mt-2">{harnessModelSummary}. 서버에서 단계별 진행 이벤트를 실시간 수신 중입니다.</p>
 
                   {/* 실시간 attempt 로그 */}
                   {state.harness && state.harness.attempts.length > 0 && (

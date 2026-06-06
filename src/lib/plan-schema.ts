@@ -9,7 +9,7 @@ export const RequirementSpecSchema = z.object({
   assumptions: z.array(z.string()),
   missingInfo: z.array(z.string()),
   sourceTopic: z.string(),
-  sourceCommand: z.enum(["quick", "deep", "debate", "consult", "extend", "fix", "ideate"]),
+  sourceCommand: z.enum(["quick", "deep", "debate", "consult", "extend", "fix", "ideate", "academy"]),
 });
 
 export const CpsDocumentSchema = z.object({

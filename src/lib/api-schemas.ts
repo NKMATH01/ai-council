@@ -1,13 +1,16 @@
 import { z } from "zod";
+import { MODEL_REGISTRY, validateModelConfig } from "./model-registry";
 
 // ===== 공통 enum 값 =====
+const AiProviderSchema = z.enum(["anthropic", "openai", "google"]);
+
 const DebateRoleIdSchema = z.enum([
   "architect", "critic", "creative", "frontend", "backend",
   "devops", "cost_analyst", "data_expert", "ux_advocate", "planner", "moderator",
 ]);
 
 const DebateCommandSchema = z.enum([
-  "quick", "deep", "debate", "consult", "extend", "fix", "ideate",
+  "quick", "deep", "debate", "consult", "extend", "fix", "ideate", "academy",
 ]);
 
 const DebateStageIdSchema = z.enum([
@@ -23,13 +26,19 @@ const VerifyEngineIdSchema = z.enum([
 ]);
 
 const VerificationProviderSchema = z.enum(["chatgpt", "gemini"]);
+const DebateActionSchema = z.enum(["argue", "rebut", "judge"]);
 
 // ===== 하위 객체 스키마 =====
 const DebateMessageSchema = z.object({
   id: z.string(),
   roleId: DebateRoleIdSchema,
   stage: DebateStageIdSchema,
+  action: DebateActionSchema.optional(),
   content: z.string(),
+  confidence: z.number().min(0).max(100).optional(),
+  needsMoreRounds: z.boolean().optional(),
+  decisionReason: z.string().optional(),
+  autoRerun: z.boolean().optional(),
   timestamp: z.number(),
 });
 
@@ -107,8 +116,13 @@ const RecommendationSchema = z.object({
 }).nullable();
 
 const HarnessModelConfigSchema = z.object({
-  provider: z.string(),
-  model: z.string(),
+  provider: AiProviderSchema,
+  model: z.enum(Object.keys(MODEL_REGISTRY) as [keyof typeof MODEL_REGISTRY, ...(keyof typeof MODEL_REGISTRY)[]]),
+}).superRefine((config, ctx) => {
+  const error = validateModelConfig(config);
+  if (error) {
+    ctx.addIssue({ code: "custom", message: error });
+  }
 });
 
 const HarnessModelSettingsSchema = z.object({

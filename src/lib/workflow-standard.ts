@@ -6,13 +6,24 @@ import {
 import type { HarnessInputArtifacts } from "./types";
 import { TopicSubmitData } from "@/components/TopicInput";
 import {
-  QUICK_ROLES, DEEP_ROLES, CONSULT_ROLES, FIX_ROLES,
-  getDebateOrder,
+  QUICK_ROLES, DEEP_ROLES, CONSULT_ROLES, FIX_ROLES, ACADEMY_ROLES,
+  getDebateOrder, MODELS,
 } from "./constants";
 import { initialState } from "./debate-reducer";
+import {
+  buildAutoRerunFeedback,
+  getDebateAction,
+  getLatestJudgeDecision,
+  parseDebateDecision,
+  shouldRunMoreDebate,
+} from "./debate-protocol";
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+}
+
+function verificationModelLabel(provider: VerificationProvider): string {
+  return provider === "chatgpt" ? MODELS.verification.chatgpt.label : MODELS.verification.gemini.label;
 }
 
 // ===== 역할 하나 실행 =====
@@ -44,12 +55,20 @@ export async function runRole(
 
   ctx.setStreamText("");
   ctx.setStreamRoleId(null);
+  const action = getDebateAction(stage);
+  const decision = stage === "final" && roleId === "moderator"
+    ? parseDebateDecision(content)
+    : {};
 
   return {
     id: `${stage}-${roleId}-${Date.now()}`,
     roleId,
     stage,
+    action,
     content,
+    confidence: decision.confidence,
+    needsMoreRounds: decision.needsMoreRounds,
+    decisionReason: decision.reason,
     timestamp: Date.now(),
   };
 }
@@ -91,14 +110,15 @@ export async function generatePrd(
   previousPrd?: string,
   feedbackText?: string,
 ) {
-  const docName = snap.command === "consult" ? "의견 종합 보고서"
+  const docName = snap.command === "academy" ? "학원 운영 개선 보고서"
+    : snap.command === "consult" ? "의견 종합 보고서"
     : snap.command === "extend" ? "기능 확장 계획서"
     : snap.command === "fix" ? "구조 수정 계획서"
     : "PRD";
 
   ctx.dispatch({ type: "SET_STATUS", status: "generating_prd" });
   ctx.setStreamRoleId(null);
-  ctx.setStreamLabel(`${docName} 생성 중 (Claude Opus 4.6)`);
+  ctx.setStreamLabel(`${docName} 생성 중 (${MODELS.prd.label})`);
   ctx.setStreamText("");
 
   const prd = await ctx.fetchStream("/api/synthesize", {
@@ -139,7 +159,27 @@ export async function runDebateFlow(
   await runStage(ctx, "independent", snap.topic, allMessages, snap);
   await runStage(ctx, "critique", snap.topic, allMessages, snap);
   await runStage(ctx, "final", snap.topic, allMessages, snap);
+  await runAutoRerunIfNeeded(ctx, snap, allMessages);
   await ctx.save({ ...ctx.stateRef.current, messages: [...allMessages] }, "debated");
+}
+
+async function runAutoRerunIfNeeded(
+  ctx: WorkflowContext,
+  snap: DebateState,
+  allMessages: DebateMessage[],
+) {
+  const decision = getLatestJudgeDecision(allMessages);
+  if (!decision || !shouldRunMoreDebate(decision, 0)) return;
+
+  const feedback = buildAutoRerunFeedback(decision);
+  ctx.setStreamLabel("판정 신뢰도 낮음: 자동 재토론 1회 실행 중...");
+  const beforeRerunCount = allMessages.length;
+  await runStage(ctx, "critique", snap.topic, allMessages, snap, feedback);
+  await runStage(ctx, "final", snap.topic, allMessages, snap);
+  for (const msg of allMessages.slice(beforeRerunCount)) {
+    msg.autoRerun = true;
+  }
+  ctx.setStreamLabel("");
 }
 
 // ===== 1. 추천 받기 (/debate) =====
@@ -261,7 +301,7 @@ export async function startDeep(ctx: WorkflowContext, data: TopicSubmitData) {
     for (const vp of ["chatgpt", "gemini"] as VerificationProvider[]) {
       ctx.dispatch({ type: "SET_VERIFYING", provider: vp });
       ctx.setStreamRoleId(null);
-      ctx.setStreamLabel(`외부 검증 중 (${vp === "chatgpt" ? "GPT-5.4" : "Gemini 3.1 Pro"})`);
+      ctx.setStreamLabel(`외부 검증 중 (${verificationModelLabel(vp)})`);
       ctx.setStreamText("");
 
       const verifyContent = await ctx.fetchStream("/api/verify", {
@@ -396,6 +436,41 @@ export async function startFix(ctx: WorkflowContext, data: TopicSubmitData) {
   }
 }
 
+export async function startAcademy(ctx: WorkflowContext, data: TopicSubmitData) {
+  const sessionId = genId();
+  const createdAt = new Date().toISOString();
+  const roles = ACADEMY_ROLES;
+
+  const snap: DebateState = {
+    ...initialState,
+    topic: data.topic,
+    command: "academy",
+    debateEngine: data.debateEngine,
+    verifyEngine: data.verifyEngine,
+    techSpec: data.techSpec,
+    modeInput: null,
+    confirmedRoles: roles,
+    status: "debating",
+    sessionId,
+    createdAt,
+  };
+  ctx.dispatch({ type: "INIT_SESSION", state: snap });
+
+  const allMessages: DebateMessage[] = [];
+  try {
+    await runDebateFlow(ctx, snap, allMessages);
+
+    if (data.verifyEngine !== "none") {
+      ctx.dispatch({ type: "SET_STATUS", status: "awaiting_verification" });
+    } else {
+      await generatePrd(ctx, data.topic, allMessages, { ...snap, messages: allMessages });
+    }
+  } catch (e: any) {
+    if (e.name === "AbortError") return;
+    ctx.dispatch({ type: "SET_ERROR", error: e.message });
+  }
+}
+
 // ===== 8. 검증 선택 후 처리 =====
 export async function handleVerificationChoice(
   ctx: WorkflowContext,
@@ -412,6 +487,7 @@ export async function handleVerificationChoice(
     try {
       await runStage(ctx, "critique", snap.topic, allMessages, snap, feedback);
       await runStage(ctx, "final", snap.topic, allMessages, snap);
+      await runAutoRerunIfNeeded(ctx, snap, allMessages);
       await ctx.save({ ...ctx.stateRef.current, messages: [...allMessages] }, "debated");
       ctx.dispatch({ type: "SET_STATUS", status: "awaiting_verification" });
     } catch (e: any) {
@@ -428,7 +504,7 @@ export async function handleVerificationChoice(
 
   ctx.dispatch({ type: "SET_VERIFYING", provider: choice });
   ctx.setStreamRoleId(null);
-  ctx.setStreamLabel(`외부 검증 중 (${choice === "chatgpt" ? "GPT-5.4" : "Gemini 3.1 Pro"})`);
+  ctx.setStreamLabel(`외부 검증 중 (${verificationModelLabel(choice)})`);
   ctx.setStreamText("");
 
   try {
@@ -488,6 +564,7 @@ async function refineStandardPrd(
   try {
     await runStage(ctx, "critique", snap.topic, allMessages, refineSnap, feedbackText);
     await runStage(ctx, "final", snap.topic, allMessages, refineSnap);
+    await runAutoRerunIfNeeded(ctx, refineSnap, allMessages);
     await generatePrd(
       ctx, snap.topic, allMessages,
       { ...refineSnap, messages: allMessages },
@@ -505,7 +582,7 @@ async function refineHarnessPrd(
   snap: DebateState, prevPrd: string, feedbackText: string, allFeedbacks: FeedbackEntry[],
 ) {
   ctx.dispatch({ type: "SET_STATUS", status: "generating_prd" });
-  ctx.setStreamLabel("하네스 PRD 피드백 반영 중 (Claude Opus 4.6)...");
+  ctx.setStreamLabel(`하네스 PRD 피드백 반영 중 (${MODELS.prd.label})...`);
   ctx.setStreamText("");
 
   try {
@@ -557,7 +634,7 @@ export async function generateHarnessPrd(ctx: WorkflowContext) {
   if (!snap.harness?.generatedPlan) return;
 
   ctx.dispatch({ type: "SET_STATUS", status: "generating_prd" });
-  ctx.setStreamLabel("하네스 계획 기반 PRD 생성 중 (Claude Opus 4.6)...");
+  ctx.setStreamLabel(`하네스 계획 기반 PRD 생성 중 (${MODELS.prd.label})...`);
   ctx.setStreamText("");
 
   try {
@@ -624,7 +701,7 @@ export async function generatePrototype(ctx: WorkflowContext) {
   if (!snap.prd && !isHarness) return;
 
   ctx.dispatch({ type: "SET_STATUS", status: "generating_ui" });
-  ctx.setStreamLabel("UI 프로토타입 생성 중 (Gemini 3.1 Pro)...");
+  ctx.setStreamLabel(`UI 프로토타입 생성 중 (${MODELS.verification.gemini.label})...`);
 
   try {
     const html = await ctx.fetchStream("/api/generate-ui", {
@@ -655,7 +732,7 @@ export async function refinePrototype(ctx: WorkflowContext, modificationRequest:
   if (!snap.prototypeHtml) return;
 
   ctx.dispatch({ type: "SET_STATUS", status: "generating_ui" });
-  ctx.setStreamLabel("UI 수정 중 (Gemini 3.1 Pro)...");
+  ctx.setStreamLabel(`UI 수정 중 (${MODELS.verification.gemini.label})...`);
 
   try {
     const html = await ctx.fetchStream("/api/generate-ui", {

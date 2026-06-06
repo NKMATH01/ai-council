@@ -105,6 +105,10 @@ export function getRolePrompt(
   command?: DebateCommand,
   techSpec?: string,
 ): string {
+  if (command === "academy") {
+    return getAcademyRolePrompt(roleId, stage, allRoles, techSpec);
+  }
+
   const roleList = allRoles
     .map((r) => `${ROLE_POOL[r].emoji} ${ROLE_POOL[r].koreanName}`)
     .join(", ");
@@ -141,11 +145,77 @@ export function getRolePrompt(
 // ===== 모드별 컨텍스트 =====
 function modeContext(command?: DebateCommand): string {
   switch (command) {
+    case "academy": return "학원 운영의 병목을 진단하고 바로 실행 가능한 운영 개선안을 설계";
     case "consult": return "기존 프로젝트의 코드/구조를 분석하고 전문적 개선안을 제시";
     case "extend": return "기존 시스템에 새 기능을 추가하는 최적의 방법을 설계";
     case "fix": return "코드/구조의 근본 원인을 진단하고 정확한 수정안을 제시";
     default: return "처음부터 시스템을 설계";
   }
+}
+
+function getAcademyRolePrompt(
+  roleId: DebateRoleId,
+  stage: DebateStageId,
+  allRoles: DebateRoleId[],
+  techSpec?: string,
+): string {
+  const roleNames: Record<DebateRoleId, string> = {
+    architect: "운영 구조 설계자",
+    critic: "운영 리스크 감사자",
+    creative: "성장 아이디어 디렉터",
+    frontend: "상담/학부모 경험 설계자",
+    backend: "운영 프로세스 설계자",
+    devops: "현장 실행/관리 담당자",
+    cost_analyst: "매출/비용 분석가",
+    data_expert: "수강생 데이터 분석가",
+    ux_advocate: "학생/학부모 경험 대변자",
+    planner: "학원 전략 기획자",
+    moderator: "운영 의사결정 중재자",
+  };
+
+  const roleList = allRoles.map((r) => roleNames[r] || r).join(", ");
+  const focus: Record<DebateRoleId, string> = {
+    planner: "학원의 목표, 포지셔닝, 모집 전략, 상담 흐름, 월간 운영 우선순위를 정리하세요.",
+    data_expert: "입회율, 재등록률, 이탈률, 반별 충원율, 레벨 이동, 상담 유입 경로 등 지표 관점으로 분석하세요.",
+    ux_advocate: "학생과 학부모가 실제로 겪는 불편, 신뢰 형성, 상담/피드백/숙제/성적 공유 경험을 분석하세요.",
+    cost_analyst: "강사 인건비, 광고비, 교재비, 공간 활용률, 반별 손익, 할인 정책의 영향을 계산 관점으로 보세요.",
+    critic: "과장된 기대, 현장 실행 불가, 민원 위험, 강사 번아웃, 개인정보/학부모 커뮤니케이션 리스크를 지적하세요.",
+    moderator: "앞선 의견을 통합해 이번 주부터 실행할 운영 결정을 우선순위와 담당자 기준으로 정리하세요.",
+    architect: "학원 운영 구조와 업무 흐름을 설계하세요.",
+    creative: "차별화된 모집/브랜딩/프로그램 아이디어를 제안하세요.",
+    frontend: "상담, 등록, 학부모 안내 경험을 개선하세요.",
+    backend: "반 편성, 출결, 보강, 상담 기록 운영 프로세스를 개선하세요.",
+    devops: "현장 루틴과 체크리스트로 실행 가능성을 높이세요.",
+  };
+
+  const stageGuide: Record<DebateStageId, string> = {
+    independent: "독립 분석: 다른 역할을 의식하지 말고 가장 중요한 운영 진단과 실행안을 제시하세요.",
+    critique: "교차 비판: 이전 의견 중 현장에서 실패할 가능성이 큰 부분과 보완책을 지적하세요.",
+    final: "최종 정리: 실행 우선순위, 담당자, 지표, 1주/4주 실행 계획으로 압축하세요.",
+    clarify: "질문: 학원 운영 판단에 필요한 추가 정보를 물어보세요.",
+    user_perspective: "사용자 관점: 학생/학부모/강사 입장에서 불편과 개선점을 제시하세요.",
+  };
+
+  return `당신은 ${roleNames[roleId] || roleId}입니다.
+
+## 토론 범위
+개발 프로젝트가 아니라 학원 운영 주제입니다. 수강생 모집, 상담 전환, 반 편성, 시간표, 강사 배치, 커리큘럼, 숙제/피드백, 학부모 커뮤니케이션, 재등록률, 매출/비용, 현장 실행 리스크를 다룹니다.
+
+## 현재 단계
+${stageGuide[stage]}
+
+## 당신의 초점
+${focus[roleId]}
+
+## 출력 규칙
+- 한국어로 답하세요.
+- 추상론보다 실행 가능한 운영 의사결정, 체크리스트, 지표를 우선하세요.
+- 숫자가 필요한 항목은 가정치를 명시하고 계산식을 간단히 제시하세요.
+- 개발 구현, 코드, API, DB 설계 이야기는 사용자가 명시하지 않는 한 하지 마세요.
+- 이전 역할의 의견이 있다면 중복하지 말고 보완하거나 반박하세요.
+${techSpec ? `\n## 참고 문서\n${techSpec}` : ""}
+
+참여 역할: ${roleList}`;
 }
 
 // ========================================================
@@ -762,17 +832,21 @@ ${rules}
 ### 3. 충돌 → 최종 결정
 | 주제 | A안 | B안 | 결정 | 이유 |
 
-### 4. 확정 기술 스택
+### 4. 소수 의견 / 보류 쟁점
+| 쟁점 | 소수 의견 | 왜 버리지 않는가 | 후속 확인 |
+(끝까지 살아남은 반대 의견이 없으면 "없음"이라고 쓰세요)
+
+### 5. 확정 기술 스택
 | 영역 | 기술 | 난이도 |
 
-### 5. 실행 계획
+### 6. 실행 계획
 - **Phase 1** (1주차): (체크리스트)
 - **Phase 2** (2주차): (체크리스트)
 
-### 6. ⚠️ 주의사항 3개
+### 7. ⚠️ 주의사항 3개
 (VIBE 코더가 실수하기 쉬운 것)
 
-### 7. 🚀 지금 바로 실행
+### 8. 🚀 지금 바로 실행
 \`\`\`bash
 # 첫 번째 명령어
 \`\`\`
@@ -780,6 +854,11 @@ ${rules}
 # 두 번째 명령어
 \`\`\`
 ${modeSpecificOutput}
+
+### 10. 판정 메타
+- Confidence: 0-100 사이 정수
+- Needs more rounds: yes 또는 no
+- Reason: 추가 라운드가 필요하거나 불필요한 이유 1문장
 
 ## 금지 사항
 - "상황에 따라 다릅니다" 같은 결론 금지 → 하나의 명확한 방향 결정
@@ -1428,7 +1507,11 @@ export function formatDebateHistory(messages: DebateMessage[]): string {
     formatted += `\n### ${stageNames[stage] || stage}\n`;
     for (const msg of msgs) {
       const role = ROLE_POOL[msg.roleId];
-      formatted += `\n**${role.emoji} ${role.koreanName}:**\n${msg.content}\n`;
+      const actionLabel = msg.action ? ` / ${msg.action.toUpperCase()}` : "";
+      const decisionLabel = typeof msg.confidence === "number"
+        ? ` / confidence ${msg.confidence}${msg.needsMoreRounds ? " / needs more rounds" : ""}`
+        : "";
+      formatted += `\n**${role.emoji} ${role.koreanName}${actionLabel}${decisionLabel}:**\n${msg.content}\n`;
     }
   }
 
@@ -1441,7 +1524,8 @@ export function getPrdPrompt(
   mode: "initial" | "refine" = "initial",
   command?: DebateCommand,
 ): string {
-  const docTitle = command === "consult" ? "의견 종합 보고서"
+  const docTitle = command === "academy" ? "학원 운영 개선 보고서"
+    : command === "consult" ? "의견 종합 보고서"
     : command === "extend" ? "기능 확장 계획서"
     : command === "fix" ? "구조 수정 계획서"
     : "PRD (제품 요구사항 문서)";
@@ -1454,6 +1538,7 @@ export function getPrdPrompt(
 모든 섹션을 빠짐없이 완성하세요. 한국어로 작성하세요.
 VIBE 코더(비전문가)가 바로 실행할 수 있도록 구체적으로 작성하세요.
 기술 용어에는 괄호 안에 쉬운 설명을 추가하세요.
+중재자의 "소수 의견 / 보류 쟁점"은 삭제하지 말고, 채택하지 않더라도 리스크/후속 검증 항목에 보존하세요.
 
 ⚠️ PRD에 반드시 "구현 실행 계획" 섹션을 포함하세요.
 이 섹션이 없으면 PRD가 불완전합니다.
@@ -1472,6 +1557,7 @@ ${modeSpecificSections}
 모든 섹션을 빠짐없이 완성하세요. 한국어로 작성하세요.
 VIBE 코더(비전문가)가 바로 실행할 수 있도록 구체적으로 작성하세요.
 기술 용어에는 괄호 안에 쉬운 설명을 추가하세요.
+중재자의 "소수 의견 / 보류 쟁점"은 삭제하지 말고, 채택하지 않더라도 리스크/후속 검증 항목에 보존하세요.
 
 ⚠️ PRD에 반드시 "구현 실행 계획" 섹션을 포함하세요.
 이 섹션이 없으면 PRD가 불완전합니다.
@@ -1486,7 +1572,7 @@ ${modeSpecificSections}`;
 // 명령문 생성 프롬프트
 // ========================================================
 export function getCommandGenerationPrompt(command?: DebateCommand): string {
-  const _context = command === "fix" ? "구조 수정" : command === "extend" ? "기능 확장" : command === "consult" ? "개선 적용" : "프로젝트 생성";
+  const _context = command === "academy" ? "학원 운영 개선" : command === "fix" ? "구조 수정" : command === "extend" ? "기능 확장" : command === "consult" ? "개선 적용" : "프로젝트 생성";
 
   return `당신은 Claude Code / Codex CLI 명령문 전문가입니다.
 
@@ -1587,6 +1673,33 @@ Phase별로 Claude Code에 전달할 작업 단위를 구분하세요.
 }
 
 function getModeSpecificPrdSections(command?: DebateCommand): string {
+  if (command === "academy") {
+    return `## 1. 운영 현황 요약
+## 2. 핵심 문제 진단 (모집, 상담, 반 운영, 강사, 학부모 커뮤니케이션)
+## 3. 우선순위별 개선안 (P0/P1/P2)
+## 4. 수강생 모집 및 상담 전환 전략
+## 5. 반 편성, 시간표, 강사 배치 운영안
+## 6. 재등록률과 이탈 방지 전략
+## 7. 학부모 커뮤니케이션 루틴
+## 8. 매출/비용 지표와 손익 점검표
+## 9. 현장 실행 체크리스트
+## 10. 리스크와 대응책
+
+## 11. 4주 실행 계획
+
+### Week 1: 즉시 정리
+- [ ] 실행 항목
+
+### Week 2: 상담/모집 개선
+- [ ] 실행 항목
+
+### Week 3: 수업/강사 운영 개선
+- [ ] 실행 항목
+
+### Week 4: 지표 점검과 반복
+- [ ] 실행 항목`;
+  }
+
   if (command === "consult") {
     return `## 1. 프로젝트 현황 요약
 ## 2. 전문가 핵심 의견 종합

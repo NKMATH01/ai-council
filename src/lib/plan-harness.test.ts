@@ -12,10 +12,17 @@ import {
   deserializeRecommendationPayload,
   type SessionRow,
 } from "./session-mappers";
-import type { DebateState, GeneratedPlan, PlanHarnessStreamEvent, PlanHarnessArtifacts, HarnessRunSnapshot } from "./types";
+import type { DebateState, GeneratedPlan, PlanHarnessStreamEvent, PlanHarnessArtifacts, HarnessRunSnapshot, HarnessModelConfig } from "./types";
 import { buildPreviousHarnessSummary } from "./harness-summary";
 import { computeHarnessDiff, createSnapshot, pushSnapshot } from "./harness-diff";
 import { mergeAttempts } from "./harness-attempts";
+import { PlanHarnessRequestSchema } from "./api-schemas";
+import {
+  buildAutoRerunFeedback,
+  getDebateAction,
+  parseDebateDecision,
+  shouldRunMoreDebate,
+} from "./debate-protocol";
 
 let passed = 0;
 
@@ -34,11 +41,11 @@ function test(name: string, fn: () => void | Promise<void>) {
 }
 
 function createStructuredCallQueue(outputs: string[]) {
-  const calls: Array<{ systemPrompt: string; userMessage: string; maxTokens?: number }> = [];
+  const calls: Array<{ systemPrompt: string; userMessage: string; maxTokens?: number; modelConfig?: HarnessModelConfig }> = [];
 
-  const callStructured: PlanHarnessStructuredCall = async (systemPrompt, userMessage, maxTokens) => {
+  const callStructured: PlanHarnessStructuredCall = async (systemPrompt, userMessage, maxTokens, _signal, modelConfig) => {
     const next = outputs.shift();
-    calls.push({ systemPrompt, userMessage, maxTokens });
+    calls.push({ systemPrompt, userMessage, maxTokens, modelConfig });
     if (!next) {
       throw new Error("structured call queue exhausted");
     }
@@ -184,7 +191,7 @@ function createStateWithHarness(): DebateState {
           success: true,
           issues: [],
           timestamp: Date.now(),
-          model: "claude-opus-4-6",
+          model: "claude-opus-4-8",
           provider: "anthropic",
         },
       ],
@@ -215,7 +222,7 @@ test("session mapping roundtrip preserves harness payload", () => {
   assert.equal(row.recommendation, null);
   assert.equal(restored.activeWorkflow, "plan_harness");
   assert.equal(restored.harness?.requirementSpec?.userIntent, "Create a planning workflow.");
-  assert.equal(restored.harness?.attempts[0]?.model, "claude-opus-4-6");
+  assert.equal(restored.harness?.attempts[0]?.model, "claude-opus-4-8");
   assert.equal(restored.techSpec, "Use React and Supabase.");
   assert.equal(restored.recommendation, null);
 });
@@ -528,7 +535,7 @@ test("legacy-only row restores correctly and detectHarnessRestoreSource returns 
   // Restore and verify
   const restored = mapRowToSession(legacyRow, "");
   assert.equal(restored.activeWorkflow, "plan_harness");
-  assert.equal(restored.harness?.attempts[0]?.model, "claude-opus-4-6");
+  assert.equal(restored.harness?.attempts[0]?.model, "claude-opus-4-8");
 });
 
 // =====================================================
@@ -961,7 +968,7 @@ test("runPlanHarness records generation model on generate attempts", async () =>
   ]);
 
   const genModel = { provider: "anthropic", model: "claude-sonnet-4-6" };
-  const evalModel = { provider: "openai", model: "gpt-5.4" };
+  const evalModel = { provider: "openai", model: "gpt-5.5" };
 
   const artifacts = await runPlanHarness(
     { topic: "test", command: "debate" },
@@ -978,9 +985,13 @@ test("runPlanHarness records generation model on generate attempts", async () =>
   // evaluate should use evaluation model
   const evalAttempts = artifacts.attempts.filter((a) => a.stage === "evaluate");
   for (const a of evalAttempts) {
-    assert.equal(a.model, "gpt-5.4", `evaluate should use evaluation model`);
+    assert.equal(a.model, "gpt-5.5", `evaluate should use evaluation model`);
     assert.equal(a.provider, "openai", `evaluate should use evaluation provider`);
   }
+
+  assert.equal(queue.calls[0].modelConfig?.model, "claude-sonnet-4-6", "normalize call should receive generation model config");
+  assert.equal(queue.calls[3].modelConfig?.model, "gpt-5.5", "evaluate call should receive evaluation model config");
+  assert.equal(queue.calls[3].modelConfig?.provider, "openai", "evaluate call should receive evaluation provider config");
 });
 
 test("runPlanHarness uses defaults when no models specified", async () => {
@@ -1005,11 +1016,55 @@ test("runPlanHarness uses defaults when no models specified", async () => {
     { callStructured: queue.callStructured },
   );
 
-  // All attempts should use default claude-opus-4-6
-  for (const a of artifacts.attempts) {
-    assert.equal(a.model, "claude-opus-4-6", `${a.stage} should default to opus`);
+  const genAttempts = artifacts.attempts.filter((a) => a.stage !== "evaluate");
+  const evalAttempts = artifacts.attempts.filter((a) => a.stage === "evaluate");
+
+  for (const a of genAttempts) {
+    assert.equal(a.model, "claude-sonnet-4-6", `${a.stage} should default to sonnet generation`);
     assert.equal(a.provider, "anthropic", `${a.stage} should default to anthropic`);
   }
+  for (const a of evalAttempts) {
+    assert.equal(a.model, "claude-opus-4-8", `${a.stage} should default to opus evaluation`);
+    assert.equal(a.provider, "anthropic", `${a.stage} should default to anthropic`);
+  }
+});
+
+test("PlanHarnessRequestSchema validates provider/model combinations", () => {
+  const parsed = PlanHarnessRequestSchema.parse({
+    topic: "test",
+    command: "debate",
+    models: {
+      evaluation: { provider: "openai", model: "gpt-5.5-pro" },
+    },
+  });
+
+  assert.equal(parsed.models?.evaluation?.model, "gpt-5.5-pro");
+  assert.throws(() => PlanHarnessRequestSchema.parse({
+    topic: "test",
+    command: "debate",
+    models: {
+      evaluation: { provider: "openai", model: "claude-opus-4-8" },
+    },
+  }));
+});
+
+test("debate protocol maps actions and detects low-confidence rerun", () => {
+  assert.equal(getDebateAction("independent"), "argue");
+  assert.equal(getDebateAction("critique"), "rebut");
+  assert.equal(getDebateAction("final"), "judge");
+
+  const decision = parseDebateDecision([
+    "### 10. 판정 메타",
+    "- Confidence: 62",
+    "- Needs more rounds: yes",
+    "- Reason: 핵심 데이터 설계 충돌이 해결되지 않았습니다.",
+  ].join("\n"));
+
+  assert.equal(decision.confidence, 62);
+  assert.equal(decision.needsMoreRounds, true);
+  assert.equal(shouldRunMoreDebate(decision, 0), true);
+  assert.equal(shouldRunMoreDebate(decision, 1), false);
+  assert.match(buildAutoRerunFeedback(decision), /Judge confidence: 62/);
 });
 
 // =====================================================
@@ -1112,13 +1167,13 @@ test("mergeAttempts prefers server when same key has more complete data", () => 
     { attempt: 2, stage: "cps", success: false, issues: ["partial"], timestamp: 200 },
   ];
   const server: PlanHarnessArtifacts["attempts"] = [
-    { attempt: 1, stage: "normalize", success: true, issues: [], timestamp: 100, model: "claude-opus-4-6", provider: "anthropic" },
-    { attempt: 2, stage: "cps", success: false, issues: ["full error: schema validation failed"], timestamp: 200, model: "claude-opus-4-6" },
+    { attempt: 1, stage: "normalize", success: true, issues: [], timestamp: 100, model: "claude-opus-4-8", provider: "anthropic" },
+    { attempt: 2, stage: "cps", success: false, issues: ["full error: schema validation failed"], timestamp: 200, model: "claude-opus-4-8" },
   ];
   const merged = mergeAttempts(client, server);
   assert.equal(merged.length, 2);
   // Server values should win (more complete)
-  assert.equal(merged[0].model, "claude-opus-4-6", "server model should be present");
+  assert.equal(merged[0].model, "claude-opus-4-8", "server model should be present");
   assert.equal(merged[1].issues[0], "full error: schema validation failed", "server issues should be preferred");
 });
 

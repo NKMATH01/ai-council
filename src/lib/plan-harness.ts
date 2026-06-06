@@ -1,5 +1,6 @@
 import { type ZodType } from "zod";
-import { callClaudeStructured } from "./ai-stream";
+import { callStructuredModel } from "./ai-stream";
+import { DEFAULT_HARNESS_EVALUATION, DEFAULT_HARNESS_GENERATION } from "./model-registry";
 import { buildEvaluatorPrompt, enforcePassCriteria } from "./plan-evaluator";
 import { lintPlan } from "./plan-linter";
 import { buildRepairContext, createAttempt, shouldRetry } from "./plan-retry";
@@ -46,6 +47,7 @@ export type PlanHarnessStructuredCall = (
   userMessage: string,
   maxTokens?: number,
   signal?: AbortSignal,
+  modelConfig?: HarnessModelConfig,
 ) => Promise<string>;
 
 export interface RunPlanHarnessOptions {
@@ -56,8 +58,8 @@ export interface RunPlanHarnessOptions {
   models?: HarnessModelSettings;
 }
 
-const DEFAULT_GENERATION: HarnessModelConfig = { provider: "anthropic", model: "claude-opus-4-6" };
-const DEFAULT_EVALUATION: HarnessModelConfig = { provider: "anthropic", model: "claude-opus-4-6" };
+const DEFAULT_GENERATION: HarnessModelConfig = DEFAULT_HARNESS_GENERATION;
+const DEFAULT_EVALUATION: HarnessModelConfig = DEFAULT_HARNESS_EVALUATION;
 
 function resolveModels(settings?: HarnessModelSettings) {
   return {
@@ -74,7 +76,7 @@ export async function runPlanHarness(
     lintIssues: [],
     attempts: [],
   };
-  const callStructured = options.callStructured ?? callClaudeStructured;
+  const callStructured = options.callStructured ?? callStructuredModel;
   const signal = options.signal;
   const { generation: genModel, evaluation: evalModel } = resolveModels(options.models);
   let lastStage: PlanHarnessStage | undefined;
@@ -105,7 +107,7 @@ export async function runPlanHarness(
   const normalizeResult = await runWithRetry(artifacts, "normalize", emit, signal, genModel,
     async (repairCtx) => {
       const { system, user } = buildNormalizePrompt(input);
-      const raw = await callStructured(system, repairCtx ? `${user}\n\n${repairCtx}` : user, 4096, signal, genModel.model);
+      const raw = await callStructured(system, repairCtx ? `${user}\n\n${repairCtx}` : user, 4096, signal, genModel);
       return parseStageResult(raw, RequirementSpecSchema);
     },
   );
@@ -126,7 +128,7 @@ export async function runPlanHarness(
   const cpsResult = await runWithRetry(artifacts, "cps", emit, signal, genModel,
     async (repairCtx) => {
       const { system, user } = buildCpsPrompt(artifacts.requirementSpec!);
-      const raw = await callStructured(system, repairCtx ? `${user}\n\n${repairCtx}` : user, 4096, signal, genModel.model);
+      const raw = await callStructured(system, repairCtx ? `${user}\n\n${repairCtx}` : user, 4096, signal, genModel);
       return parseStageResult(raw, CpsDocumentSchema);
     },
   );
@@ -151,7 +153,7 @@ export async function runPlanHarness(
     const generateResult = await runWithRetry(artifacts, "generate", emit, signal, genModel,
       async (retryCtx) => {
         const { system, user } = buildPlanPrompt(artifacts.requirementSpec!, artifacts.cps!, retryCtx || repairContext);
-        const raw = await callStructured(system, user, 16384, signal, genModel.model);
+        const raw = await callStructured(system, user, 16384, signal, genModel);
         return parseStageResult(raw, GeneratedPlanSchema);
       },
     );
@@ -218,7 +220,7 @@ export async function runPlanHarness(
     const evaluationResult = await runWithRetry(artifacts, "evaluate", emit, signal, evalModel,
       async (retryCtx) => {
         const { system, user } = buildEvaluatorPrompt(artifacts.requirementSpec!, artifacts.cps!, plan);
-        const raw = await callStructured(system, retryCtx ? `${user}\n\n${retryCtx}` : user, 4096, signal, evalModel.model);
+        const raw = await callStructured(system, retryCtx ? `${user}\n\n${retryCtx}` : user, 4096, signal, evalModel);
         return enforcePassCriteria(parseStageResult(raw, PlanEvaluationSchema));
       },
     );
