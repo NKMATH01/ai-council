@@ -205,6 +205,10 @@ export const GenerateUiRequestSchema = z.object({
   modificationRequest: z.string().optional(),
   source: z.enum(["debate", "harness"]).optional(),
   harnessArtifacts: HarnessInputArtifactsSchema,
+  uiProvider: z.enum(["stitch", "gemini"]).optional(),
+  stitchProjectId: z.string().optional(),
+  stitchDeviceType: z.enum(["MOBILE", "DESKTOP", "TABLET", "AGNOSTIC"]).optional(),
+  stitchModelId: z.enum(["GEMINI_3_1_PRO", "GEMINI_3_FLASH"]).optional(),
 });
 
 /** POST /api/plan-harness */

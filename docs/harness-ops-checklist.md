@@ -143,7 +143,7 @@
 9. API 에러 응답에 error.message가 그대로 클라이언트에 전달됨 (내부 스택트레이스, DB 에러, API 키 관련 정보 유출 가능)
 
 ### 환경변수
-10. 필수 환경변수(ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 누락 시 앱이 시작되지만 런타임에 알 수 없는 에러 발생
+10. 필수 환경변수(ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, STITCH_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 누락 시 앱이 시작되지만 런타임에 알 수 없는 에러 발생
 
 ### 입력 검증
 11. API route에서 요청 본문을 Zod 등으로 검증하지 않고 그대로 사용 (악의적 입력으로 예기치 않은 동작 유발 가능)

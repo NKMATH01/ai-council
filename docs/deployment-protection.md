@@ -76,6 +76,6 @@
 
 - [ ] Vercel Deployment Protection 활성화 (또는 동등한 접근 제어)
 - [ ] API 에러 응답에 내부 정보가 포함되지 않는지 확인
-- [ ] 환경변수 6개(ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_URL) 설정 확인
+- [ ] 환경변수 7개(ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, STITCH_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_URL) 설정 확인
 - [ ] `npm run build` 통과
 - [ ] `npm run test:harness` 통과

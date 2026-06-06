@@ -1,37 +1,45 @@
 import { NextRequest } from "next/server";
 import { streamGemini } from "@/lib/ai-stream";
 import {
-  getUiPrototypePrompt, getUiRefinePrompt,
-  getHarnessUiPrompt, buildHarnessUiUserMessage,
+  buildHarnessUiUserMessage,
+  getHarnessUiPrompt,
+  getUiPrototypePrompt,
+  getUiRefinePrompt,
 } from "@/lib/prompts";
 import { GenerateUiRequestSchema } from "@/lib/api-schemas";
+import { generateStitchPrototype } from "@/lib/stitch-ui";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
     const body = GenerateUiRequestSchema.parse(await request.json());
-    const { prd, existingHtml, modificationRequest, source, harnessArtifacts } = body;
+    const provider = body.uiProvider || "stitch";
 
-    let systemPrompt: string;
-    let userMessage: string;
+    if (provider === "stitch") {
+      const result = await generateStitchPrototype({
+        prd: body.prd,
+        existingHtml: body.existingHtml,
+        modificationRequest: body.modificationRequest,
+        source: body.source,
+        harnessArtifacts: body.harnessArtifacts,
+        projectId: body.stitchProjectId,
+        deviceType: body.stitchDeviceType,
+        modelId: body.stitchModelId,
+      });
 
-    if (existingHtml && modificationRequest) {
-      // 수정 요청 (하네스/일반 공통)
-      systemPrompt = getUiRefinePrompt();
-      userMessage = `## 기존 HTML 코드\n${existingHtml}\n\n## 수정 요청\n${modificationRequest}`;
-    }
-    // === 하네스 기반 초기 생성 (PRD 없이 계획만으로) ===
-    else if (source === "harness" && harnessArtifacts) {
-      systemPrompt = getHarnessUiPrompt();
-      userMessage = buildHarnessUiUserMessage(harnessArtifacts);
-    }
-    // === 기존 PRD 기반 초기 생성 (변경 없음) ===
-    else {
-      systemPrompt = getUiPrototypePrompt();
-      userMessage = prd;
+      return new Response(result.html, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache",
+          "X-Stitch-Project-Id": result.projectId,
+          "X-Stitch-Screen-Id": result.screenId,
+          ...(result.imageUrl ? { "X-Stitch-Image-Url": result.imageUrl } : {}),
+        },
+      });
     }
 
+    const { systemPrompt, userMessage } = buildGeminiUiPrompt(body);
     const stream = await streamGemini(systemPrompt, userMessage, undefined, 65536);
 
     return new Response(stream, {
@@ -43,13 +51,35 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     if (error?.name === "ZodError") {
-      console.error("Validation error:", error.issues);
-      return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
+      console.error("Generate UI validation error:", error.issues);
+      return Response.json({ error: "Invalid generate-ui request." }, { status: 400 });
     }
+
     console.error("Generate UI error:", error);
     return Response.json(
-      { error: "AI 응답 생성 중 오류가 발생했습니다." },
+      { error: error?.message || "UI generation failed." },
       { status: 500 },
     );
   }
+}
+
+function buildGeminiUiPrompt(body: ReturnType<typeof GenerateUiRequestSchema.parse>) {
+  if (body.existingHtml && body.modificationRequest) {
+    return {
+      systemPrompt: getUiRefinePrompt(),
+      userMessage: `## Existing HTML\n${body.existingHtml}\n\n## Revision request\n${body.modificationRequest}`,
+    };
+  }
+
+  if (body.source === "harness" && body.harnessArtifacts) {
+    return {
+      systemPrompt: getHarnessUiPrompt(),
+      userMessage: buildHarnessUiUserMessage(body.harnessArtifacts),
+    };
+  }
+
+  return {
+    systemPrompt: getUiPrototypePrompt(),
+    userMessage: body.prd,
+  };
 }

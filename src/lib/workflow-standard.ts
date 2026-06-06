@@ -701,11 +701,12 @@ export async function generatePrototype(ctx: WorkflowContext) {
   if (!snap.prd && !isHarness) return;
 
   ctx.dispatch({ type: "SET_STATUS", status: "generating_ui" });
-  ctx.setStreamLabel(`UI 프로토타입 생성 중 (${MODELS.verification.gemini.label})...`);
+  ctx.setStreamLabel("Stitch UI 프로토타입 생성 중...");
 
   try {
     const html = await ctx.fetchStream("/api/generate-ui", {
       prd: snap.prd || "",
+      uiProvider: "stitch",
       ...(isHarness ? { source: "harness" as const, harnessArtifacts: getHarnessArtifactsForApi(snap) } : {}),
     }, (t: string) => ctx.dispatch({ type: "STREAM_PROTOTYPE", prototypeHtml: t }));
 
@@ -732,13 +733,14 @@ export async function refinePrototype(ctx: WorkflowContext, modificationRequest:
   if (!snap.prototypeHtml) return;
 
   ctx.dispatch({ type: "SET_STATUS", status: "generating_ui" });
-  ctx.setStreamLabel(`UI 수정 중 (${MODELS.verification.gemini.label})...`);
+  ctx.setStreamLabel("Stitch UI 수정 중...");
 
   try {
     const html = await ctx.fetchStream("/api/generate-ui", {
       prd: snap.prd,
       existingHtml: snap.prototypeHtml,
       modificationRequest,
+      uiProvider: "stitch",
     }, (t: string) => ctx.dispatch({ type: "STREAM_PROTOTYPE", prototypeHtml: t }));
 
     ctx.setStreamLabel("");
