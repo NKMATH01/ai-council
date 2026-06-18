@@ -19,6 +19,7 @@ import {
   requestRecommendation as _requestRecommendation,
   confirmAndStart as _confirmAndStart,
   startQuick as _startQuick,
+  startJudge as _startJudge,
   startDeep as _startDeep,
   startConsult as _startConsult,
   startExtend as _startExtend,
@@ -127,6 +128,33 @@ export function useDebate() {
     dispatch, stateRef, abortRef, setStreamText, setStreamRoleId, setStreamLabel, fetchStream, save,
   }), [dispatch]);
 
+  const resolveClarificationPhase = (s: Session) => {
+    const saved = (s as any).clarificationPhase;
+    const qas = s.clarifications || [];
+
+    // 1) 미답변 질문이 있는 첫 phase가 가장 정확한 현재 위치 (추론을 최우선)
+    for (const phase of CLARIFY_PHASE_ORDER) {
+      if (qas.some((q) => q.phase === phase && !q.answers?.trim())) {
+        return phase;
+      }
+    }
+
+    // 2) 명시적으로 저장된 phase가 유효하면 사용
+    if (CLARIFY_PHASE_ORDER.includes(saved)) return saved;
+
+    // 3) QA가 있는 가장 마지막 phase 기준 — 그 phase가 모두 답변됐고
+    //    다음 phase가 있으면 다음 phase로 진행 (phase 전이 직후 새로고침 대비)
+    for (let i = CLARIFY_PHASE_ORDER.length - 1; i >= 0; i--) {
+      const phase = CLARIFY_PHASE_ORDER[i];
+      if (qas.some((q) => q.phase === phase)) {
+        const next = CLARIFY_PHASE_ORDER[i + 1];
+        return next ?? phase;
+      }
+    }
+
+    return "vision";
+  };
+
   // ===== 워크플로 함수 래핑 =====
   const requestRecommendation = useCallback(
     (data: TopicSubmitData) => _requestRecommendation(ctx, data), [ctx]);
@@ -136,6 +164,9 @@ export function useDebate() {
 
   const startQuick = useCallback(
     (data: TopicSubmitData) => _startQuick(ctx, data), [ctx]);
+
+  const startJudge = useCallback(
+    (data: TopicSubmitData) => _startJudge(ctx, data), [ctx]);
 
   const startDeep = useCallback(
     (data: TopicSubmitData) => _startDeep(ctx, data), [ctx]);
@@ -215,11 +246,7 @@ export function useDebate() {
           feedbacks: s.feedbacks || [],
           clarifications: s.clarifications || [],
           clarificationRound: s.clarificationRound || 0,
-          clarificationPhase: (() => {
-            const saved = (s as any).clarificationPhase || "vision";
-            // resolution phase가 제거됐으므로 마지막 유효 phase로 보정
-            return CLARIFY_PHASE_ORDER.includes(saved) ? saved : CLARIFY_PHASE_ORDER[CLARIFY_PHASE_ORDER.length - 1] || "vision";
-          })(),
+          clarificationPhase: resolveClarificationPhase(s),
           harness: s.harness || undefined,
           activeWorkflow: s.activeWorkflow || undefined,
           harnessRunCount: s.harness?.runCount || undefined,
@@ -227,6 +254,7 @@ export function useDebate() {
           harnessUserSummary: s.harness?.userSummary || undefined,
           generatedCommand: s.generatedCommand || "",
           prototypeHtml: s.prototypeHtml || "",
+          useJudge: s.useJudge,
           // generating_plan 상태로 저장된 하네스 세션은 스트림이 이미 끊긴 stale 세션이므로
           // error로 전환하여 "멈춤"을 방지한다.
           status: (
@@ -360,12 +388,12 @@ export function useDebate() {
     }
 
     // quick, deep, debate 등 일반 모드: 토론 재시작
-    if (["quick", "deep", "debate", "consult", "extend", "fix", "academy"].includes(cmd || "")) {
+    if (["quick", "deep", "judge", "debate", "consult", "extend", "fix", "academy"].includes(cmd || "")) {
       const allMessages: DebateMessage[] = [];
       try {
         dispatch({ type: "UPDATE_HARNESS", updates: { status: "debating", messages: [] } });
         await _runDebateFlow(ctx, snap, allMessages);
-        if (["quick", "deep"].includes(cmd || "")) {
+        if (["quick", "deep", "judge"].includes(cmd || "")) {
           await _generatePrd(ctx, snap.topic, allMessages, { ...snap, messages: allMessages });
         } else {
           dispatch({ type: "SET_STATUS", status: "awaiting_verification" });
@@ -394,6 +422,7 @@ export function useDebate() {
     requestRecommendation,
     confirmAndStart,
     startQuick,
+    startJudge,
     startDeep,
     startConsult,
     startExtend,

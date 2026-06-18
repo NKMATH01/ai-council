@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { PlanHarnessStreamEvent } from "@/lib/types";
 import { runPlanHarness } from "@/lib/plan-harness";
 import { PlanHarnessRequestSchema } from "@/lib/api-schemas";
+import { researchGitHubReferences } from "@/lib/github-research";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -39,7 +40,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { topic, command, modeInput, techSpec, referencePrd, revisionRequest, previousPlanSummary, models } = body;
+  const {
+    topic,
+    command,
+    modeInput,
+    techSpec,
+    referencePrd,
+    revisionRequest,
+    previousPlanSummary,
+    githubResearch,
+    models,
+  } = body;
 
   const encoder = new TextEncoder();
 
@@ -59,6 +70,13 @@ export async function POST(req: NextRequest) {
       };
 
       try {
+        const resolvedGithubResearch = githubResearch || await researchGitHubReferences({
+          topic,
+          command: command || "debate",
+          techSpec: [techSpec, referencePrd].filter(Boolean).join("\n\n"),
+          limit: 4,
+        });
+
         await runPlanHarness(
           {
             topic,
@@ -68,6 +86,7 @@ export async function POST(req: NextRequest) {
             referencePrd: referencePrd || undefined,
             revisionRequest: revisionRequest || undefined,
             previousPlanSummary: previousPlanSummary || undefined,
+            githubResearch: resolvedGithubResearch,
           },
           { onEvent: send, signal: abortController.signal, models: models || undefined },
         );

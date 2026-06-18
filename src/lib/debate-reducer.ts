@@ -24,6 +24,7 @@ export const initialState: DebateState = {
   clarificationPhase: "vision",
   generatedCommand: "",
   prototypeHtml: "",
+  useJudge: false,
   status: "idle",
   createdAt: "",
 };

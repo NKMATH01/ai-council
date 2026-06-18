@@ -28,7 +28,7 @@ interface TopicInputProps {
 }
 
 const OPERATION_MODES: DebateCommand[] = ["academy"];
-const DESIGN_MODES: DebateCommand[] = ["ideate", "debate", "quick", "deep"];
+const DESIGN_MODES: DebateCommand[] = ["ideate", "debate", "quick", "judge", "deep"];
 const ASSIST_MODES: DebateCommand[] = ["consult", "extend", "fix"];
 
 export default function TopicInput({ onSubmit, disabled, onTopicChange, referencePrd }: TopicInputProps) {

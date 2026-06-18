@@ -44,14 +44,13 @@ export const MODEL_REGISTRY = {
     highEnd: true,
     notes: "Responses API 비스트리밍/백그라운드 용도",
   },
-  "gemini-3-pro-preview": {
+  "gemini-pro-latest": {
     provider: "google",
-    label: "Gemini 3 Pro Preview",
-    description: "Google 최신 Gemini Pro preview 모델",
+    label: "Gemini Pro (latest)",
+    description: "Google Gemini Pro 최신 별칭(자동 추종)",
     supportsStreaming: true,
     supportsStructured: true,
     highEnd: true,
-    isPreview: true,
   },
 } as const satisfies Record<string, ModelMetadata>;
 
@@ -76,8 +75,8 @@ export const DEFAULT_OPENAI_MODEL: HarnessModelConfig = {
 };
 
 export const DEFAULT_GEMINI_MODEL: HarnessModelConfig = {
-  provider: MODEL_REGISTRY["gemini-3-pro-preview"].provider,
-  model: "gemini-3-pro-preview",
+  provider: MODEL_REGISTRY["gemini-pro-latest"].provider,
+  model: "gemini-pro-latest",
 };
 
 export function getModelMetadata(modelId: string): ModelMetadata | undefined {

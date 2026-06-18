@@ -89,9 +89,10 @@ export default function ClarificationPanel({
     : clarifications;
 
   // Phase navigation helpers
-  const isLastPhase = currentPhase === "resolution" || !currentPhase;
+  const currentPhaseIndex = currentPhase ? CLARIFY_PHASE_ORDER.indexOf(currentPhase) : -1;
+  const isLastPhase = !currentPhase || currentPhaseIndex >= CLARIFY_PHASE_ORDER.length - 1;
   const nextPhaseLabel = !isLastPhase && currentPhase
-    ? `다음: ${CLARIFY_PHASE_LABELS[CLARIFY_PHASE_ORDER[CLARIFY_PHASE_ORDER.indexOf(currentPhase) + 1]]?.title}`
+    ? `다음: ${CLARIFY_PHASE_LABELS[CLARIFY_PHASE_ORDER[currentPhaseIndex + 1]]?.title}`
     : null;
 
   // Check all required questions answered
@@ -106,8 +107,12 @@ export default function ClarificationPanel({
     return qa && qa.questions;
   });
 
-  const allAnswered =
+  const canContinue =
     rolesWithQuestions.length > 0 &&
+    !isGenerating;
+
+  const allAnswered =
+    canContinue &&
     rolesWithQuestions.every((roleId) => {
       const state = answerStates[roleId];
       if (!state) return false;
@@ -121,7 +126,7 @@ export default function ClarificationPanel({
   const handleSubmitAndMore = () => {
     const answers: Record<string, string> = {};
     for (const roleId of rolesWithQuestions) {
-      answers[roleId] = buildAnswerString(roleId, getQuestions(roleId));
+      answers[roleId] = buildAnswerString(roleId, getQuestions(roleId)) || "AI 추천 기본값으로 진행";
     }
     onRequestMoreQuestions(answers);
   };
@@ -129,7 +134,7 @@ export default function ClarificationPanel({
   const handleSubmitAndProceed = () => {
     const answers: Record<string, string> = {};
     for (const roleId of rolesWithQuestions) {
-      answers[roleId] = buildAnswerString(roleId, getQuestions(roleId));
+      answers[roleId] = buildAnswerString(roleId, getQuestions(roleId)) || "AI 추천 기본값으로 진행";
     }
     onProceedToDebate(answers);
   };
@@ -343,22 +348,22 @@ export default function ClarificationPanel({
         {!isLastPhase && (
           <button
             onClick={handleSubmitAndMore}
-            disabled={!allAnswered || isGenerating}
+            disabled={!canContinue}
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold border border-border-light bg-bg-card text-text-primary hover:bg-bg-muted transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
           >
-            {isGenerating ? "생성 중..." : nextPhaseLabel ? `${nextPhaseLabel} \u2192` : "답변 제출 \u2192 후속 질문 받기"}
+            {isGenerating ? "생성 중..." : allAnswered && nextPhaseLabel ? `${nextPhaseLabel} \u2192` : nextPhaseLabel ? `${nextPhaseLabel} (추천값) \u2192` : "답변 제출 \u2192 후속 질문 받기"}
           </button>
         )}
         <button
           onClick={handleSubmitAndProceed}
-          disabled={!allAnswered || isGenerating}
+          disabled={!canContinue}
           className="w-full sm:w-auto px-6 py-2.5 bg-accent hover:bg-accent/90 text-white text-sm font-semibold rounded-xl shadow-sm shadow-accent/15 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]"
         >
           {isGenerating
             ? "생성 중..."
             : isLastPhase
-            ? "토론 시작 \u2192"
-            : "건너뛰고 토론 시작"}
+            ? allAnswered ? "토론 시작 \u2192" : "추천값으로 토론 시작 \u2192"
+            : "추천값으로 토론 시작"}
         </button>
       </div>
     </div>

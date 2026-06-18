@@ -1,7 +1,7 @@
 import { WorkflowContext } from "./workflow-context";
 import {
   DebateState, DebateMessage, DebateRoleId, DebateStageId,
-  FeedbackEntry, Recommendation, VerificationProvider,
+  DebateEngineId, FeedbackEntry, JudgeVerdict, Recommendation, VerificationProvider,
 } from "./types";
 import type { HarnessInputArtifacts } from "./types";
 import { TopicSubmitData } from "@/components/TopicInput";
@@ -9,6 +9,8 @@ import {
   QUICK_ROLES, DEEP_ROLES, CONSULT_ROLES, FIX_ROLES, ACADEMY_ROLES,
   getDebateOrder, MODELS,
 } from "./constants";
+import { CONSENSUS_THRESHOLD, DEBATER_LINEUP, MAX_ROUNDS, shouldUseJudge, USE_JUDGE } from "./judge-config";
+import { fallbackVerdict, runJudgeLoop } from "./judge-loop";
 import { initialState } from "./debate-reducer";
 import {
   buildAutoRerunFeedback,
@@ -35,6 +37,7 @@ export async function runRole(
   historyMsgs: DebateMessage[],
   snap: DebateState,
   feedback?: string,
+  engineOverride?: DebateEngineId,
 ): Promise<DebateMessage> {
   ctx.setStreamRoleId(roleId);
   ctx.setStreamText("");
@@ -47,7 +50,7 @@ export async function runRole(
     history: historyMsgs,
     feedback,
     isRefine: !!feedback,
-    debateEngine: snap.debateEngine,
+    debateEngine: engineOverride || snap.debateEngine,
     techSpec: snap.techSpec || undefined,
     modeInput: snap.modeInput || undefined,
     command: snap.command,
@@ -156,11 +159,104 @@ export async function runDebateFlow(
   snap: DebateState,
   allMessages: DebateMessage[],
 ) {
+  if (shouldUseJudge(USE_JUDGE, snap.useJudge)) {
+    await runJudgeDebate(ctx, snap, allMessages);
+    await ctx.save({ ...ctx.stateRef.current, messages: [...allMessages] }, "debated");
+    return;
+  }
+
   await runStage(ctx, "independent", snap.topic, allMessages, snap);
   await runStage(ctx, "critique", snap.topic, allMessages, snap);
   await runStage(ctx, "final", snap.topic, allMessages, snap);
   await runAutoRerunIfNeeded(ctx, snap, allMessages);
   await ctx.save({ ...ctx.stateRef.current, messages: [...allMessages] }, "debated");
+}
+
+async function runJudgeDebate(
+  ctx: WorkflowContext,
+  snap: DebateState,
+  allMessages: DebateMessage[],
+) {
+  const phaseCtrl = new AbortController();
+  const verdicts: JudgeVerdict[] = [];
+  ctx.dispatch({ type: "UPDATE_HARNESS", updates: { status: "debating", judgeVerdicts: [] } });
+
+  try {
+    const result = await runJudgeLoop({
+      maxRounds: MAX_ROUNDS,
+      lineup: DEBATER_LINEUP,
+      signal: phaseCtrl.signal,
+      callDebater: async (engine, roleId, round, stage, guidance) => {
+        ctx.dispatch({ type: "SET_STAGE", stage, status: "debating" });
+        ctx.setStreamLabel(`라운드 ${round} · ${engine} · ${roleId}`);
+        const history = stage === "independent" && round === 1 ? [] : allMessages;
+        const msg = await runRole(ctx, roleId, stage, snap.topic, history, snap, guidance, engine);
+        allMessages.push(msg);
+        ctx.dispatch({ type: "SET_MESSAGES", messages: [...allMessages] });
+        return msg.content;
+      },
+      callJudge: async (round, turns, synthesize) => {
+        ctx.setStreamLabel(`라운드 ${round} · judge`);
+        try {
+          ctx.abortRef.current = phaseCtrl;
+          const res = await fetch("/api/judge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              topic: snap.topic,
+              transcript: turns.map((turn) => ({
+                round: turn.round,
+                engine: turn.engine,
+                roleId: turn.roleId,
+                content: turn.content,
+              })),
+              round,
+              maxRounds: MAX_ROUNDS,
+              consensusThreshold: CONSENSUS_THRESHOLD,
+              synthesize,
+            }),
+            signal: AbortSignal.any([phaseCtrl.signal, AbortSignal.timeout(45000)]),
+          });
+          if (!res.ok) throw new Error(`Judge API failed: ${res.status}`);
+          return await res.json() as JudgeVerdict;
+        } catch (error) {
+          if (phaseCtrl.signal.aborted) throw error;
+          if (synthesize) {
+            return {
+              consensus_level: 0,
+              is_superficial_agreement: false,
+              decision: "stop",
+              reason: error instanceof Error ? error.message : "심판 최종 종합에 실패했습니다.",
+              final_answer: "심판 최종 종합 답변을 생성하지 못했습니다. 마지막 토론 내용을 기준으로 결론을 확인해 주세요.",
+            };
+          }
+          return fallbackVerdict(error instanceof Error ? error.message : undefined);
+        }
+      },
+      onVerdict: (verdict, round) => {
+        verdicts.push({ ...verdict, round });
+        ctx.dispatch({ type: "UPDATE_HARNESS", updates: { judgeVerdicts: [...verdicts] } });
+      },
+    });
+
+    const finalAnswer = result.finalAnswer
+      || result.turns[result.turns.length - 1]?.content
+      || "심판 최종 답변을 생성하지 못했습니다.";
+    allMessages.push({
+      id: `final-moderator-${Date.now()}`,
+      roleId: "moderator",
+      stage: "final",
+      action: "judge",
+      content: finalAnswer,
+      timestamp: Date.now(),
+    });
+    ctx.dispatch({ type: "SET_MESSAGES", messages: [...allMessages] });
+    ctx.setStreamLabel("");
+  } finally {
+    if (ctx.abortRef.current === phaseCtrl) {
+      ctx.abortRef.current = null;
+    }
+  }
 }
 
 async function runAutoRerunIfNeeded(
@@ -256,6 +352,37 @@ export async function startQuick(ctx: WorkflowContext, data: TopicSubmitData) {
     techSpec: data.techSpec,
     modeInput: null,
     confirmedRoles: roles,
+    status: "debating",
+    sessionId,
+    createdAt,
+  };
+  ctx.dispatch({ type: "INIT_SESSION", state: snap });
+
+  const allMessages: DebateMessage[] = [];
+  try {
+    await runDebateFlow(ctx, snap, allMessages);
+    await generatePrd(ctx, data.topic, allMessages, { ...snap, messages: allMessages });
+  } catch (e: any) {
+    if (e.name === "AbortError") return;
+    ctx.dispatch({ type: "SET_ERROR", error: e.message });
+  }
+}
+
+export async function startJudge(ctx: WorkflowContext, data: TopicSubmitData) {
+  const sessionId = genId();
+  const createdAt = new Date().toISOString();
+  const roles: DebateRoleId[] = ["architect", "critic", "creative"];
+
+  const snap: DebateState = {
+    ...initialState,
+    topic: data.topic,
+    command: "judge",
+    debateEngine: data.debateEngine,
+    verifyEngine: data.verifyEngine,
+    techSpec: data.techSpec,
+    modeInput: null,
+    confirmedRoles: roles,
+    useJudge: true,
     status: "debating",
     sessionId,
     createdAt,
@@ -621,6 +748,7 @@ async function refineHarnessPrd(
 export function getHarnessArtifactsForApi(snap: DebateState): HarnessInputArtifacts | undefined {
   if (!snap.harness) return undefined;
   return {
+    githubResearch: snap.harness.githubResearch,
     requirementSpec: snap.harness.requirementSpec,
     cps: snap.harness.cps,
     generatedPlan: snap.harness.generatedPlan,

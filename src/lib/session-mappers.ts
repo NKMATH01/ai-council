@@ -6,10 +6,12 @@ export type HarnessStorageMode = "dedicated" | "legacy";
 type RecommendationPayload = Record<string, unknown> & {
   _harness?: Session["harness"];
   _activeWorkflow?: ActiveWorkflow;
+  _judgeVerdicts?: Session["judgeVerdicts"];
 };
 
 interface BuildSessionRowOptions {
   harnessStorage?: HarnessStorageMode;
+  judgeStorage?: HarnessStorageMode;
 }
 
 export interface SessionRow {
@@ -27,6 +29,7 @@ export interface SessionRow {
   recommendation: RecommendationPayload | Recommendation | null;
   harness_data?: Session["harness"] | null;
   active_workflow?: ActiveWorkflow | null;
+  judge_verdicts?: Session["judgeVerdicts"] | null;
   verification_provider: Session["verificationProvider"] | "";
   verification_result: string;
   prd_revisions: Session["prdRevisions"];
@@ -62,10 +65,12 @@ export function buildSessionFromState(
     feedbacks: snap.feedbacks,
     clarifications: snap.clarifications || undefined,
     clarificationRound: snap.clarificationRound || undefined,
+    clarificationPhase: snap.clarificationPhase || undefined,
     harness: snap.harness || undefined,
     activeWorkflow: snap.activeWorkflow || undefined,
     generatedCommand: snap.generatedCommand || undefined,
     prototypeHtml: snap.prototypeHtml || undefined,
+    judgeVerdicts: snap.judgeVerdicts || undefined,
     status: statusOverride || snap.status,
     createdAt: snap.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -76,15 +81,18 @@ export function serializeRecommendationPayload(
   recommendation: Session["recommendation"],
   harness?: Session["harness"],
   activeWorkflow?: ActiveWorkflow,
+  judgeVerdicts?: Session["judgeVerdicts"],
 ): RecommendationPayload | Recommendation | null {
-  if (!harness) {
+  const hasJudgeVerdicts = !!judgeVerdicts && judgeVerdicts.length > 0;
+
+  if (!harness && !hasJudgeVerdicts) {
     return recommendation ? { ...recommendation } : null;
   }
 
   return {
     ...(recommendation ? { ...recommendation } : {}),
-    _harness: harness,
-    _activeWorkflow: activeWorkflow || "plan_harness",
+    ...(harness ? { _harness: harness, _activeWorkflow: activeWorkflow || "plan_harness" } : {}),
+    ...(hasJudgeVerdicts ? { _judgeVerdicts: judgeVerdicts } : {}),
   };
 }
 
@@ -94,6 +102,7 @@ export function deserializeRecommendationPayload(
   recommendation: Recommendation | null;
   harness?: Session["harness"];
   activeWorkflow?: ActiveWorkflow;
+  judgeVerdicts?: Session["judgeVerdicts"];
 } {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { recommendation: null };
@@ -102,12 +111,14 @@ export function deserializeRecommendationPayload(
   const record = payload as RecommendationPayload;
   const harness = record._harness;
   const activeWorkflow = record._activeWorkflow;
-  const { _harness, _activeWorkflow, ...rest } = record;
+  const judgeVerdicts = record._judgeVerdicts;
+  const { _harness, _activeWorkflow, _judgeVerdicts, ...rest } = record;
 
   return {
     recommendation: Object.keys(rest).length > 0 ? (rest as unknown as Recommendation) : null,
     harness,
     activeWorkflow,
+    judgeVerdicts,
   };
 }
 
@@ -116,8 +127,9 @@ export function buildSessionRow(
   options: BuildSessionRowOptions = {},
 ): SessionRow {
   const harnessStorage = options.harnessStorage || "dedicated";
+  const judgeStorage = options.judgeStorage || "dedicated";
 
-  return {
+  const row: SessionRow = {
     id: session.id,
     mode: session.command || "debate",
     topic: session.topic,
@@ -129,15 +141,12 @@ export function buildSessionRow(
     html_ui: session.prototypeHtml || "",
     claude_command: session.generatedCommand || "",
     status: session.status || "idle",
-    recommendation: harnessStorage === "legacy"
-      ? serializeRecommendationPayload(
-          session.recommendation,
-          session.harness,
-          session.activeWorkflow,
-        )
-      : session.recommendation
-      ? { ...session.recommendation }
-      : null,
+    recommendation: serializeRecommendationPayload(
+      session.recommendation,
+      harnessStorage === "legacy" ? session.harness : undefined,
+      harnessStorage === "legacy" ? session.activeWorkflow : undefined,
+      judgeStorage === "legacy" ? session.judgeVerdicts : undefined,
+    ),
     harness_data: harnessStorage === "dedicated" ? session.harness || null : null,
     active_workflow: harnessStorage === "dedicated"
       ? session.activeWorkflow || (session.harness ? "plan_harness" : null)
@@ -153,6 +162,14 @@ export function buildSessionRow(
     created_at: session.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
+
+  // judge_verdicts는 dedicated일 때만 전용 컬럼에 기록. legacy면 키 자체를 생략(컬럼 미존재 DB 대비)하고
+  // serializeRecommendationPayload가 recommendation에 _judgeVerdicts로 piggyback한다.
+  if (judgeStorage === "dedicated") {
+    row.judge_verdicts = session.judgeVerdicts || null;
+  }
+
+  return row;
 }
 
 export type HarnessRestoreSource = "dedicated" | "legacy" | "none";
@@ -190,6 +207,7 @@ export function mapRowToSession(row: SessionRow, techSpec: string): Session {
     clarificationRound: row.clarification_round || undefined,
     generatedCommand: row.claude_command || undefined,
     prototypeHtml: row.html_ui || undefined,
+    judgeVerdicts: row.judge_verdicts ?? restored.judgeVerdicts,
     harness,
     activeWorkflow,
     status: row.status || "complete",

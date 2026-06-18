@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src/",
-    "test:harness": "node scripts/run-harness-tests.cjs"
+    "test:harness": "node scripts/run-harness-tests.cjs",
+    "smoke:judge": "node scripts/smoke-judge.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

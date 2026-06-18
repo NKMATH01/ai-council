@@ -11,3 +11,5 @@ data/
 build-escalated-review.log
 
 .vercel
+tsconfig.tsbuildinfo
+devserver-*.log
