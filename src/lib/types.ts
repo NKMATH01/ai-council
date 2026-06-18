@@ -29,7 +29,7 @@ export type DebateEngineId = "claude-sonnet" | "claude-opus" | "gpt" | "gemini";
 export type VerifyEngineId = "chatgpt" | "gemini" | "claude-opus" | "none";
 
 // ===== 단축 명령어 =====
-export type DebateCommand = "quick" | "deep" | "debate" | "consult" | "extend" | "fix" | "ideate" | "academy";
+export type DebateCommand = "quick" | "deep" | "debate" | "consult" | "extend" | "fix" | "ideate" | "academy" | "judge";
 
 // ===== 토론 단계 =====
 export type DebateStageId = "independent" | "critique" | "final" | "clarify" | "user_perspective";
@@ -87,6 +87,28 @@ export interface ClarificationQA {
   timestamp: number;
 }
 
+// ===== GitHub reference research =====
+export interface GitHubResearchReference {
+  repository: string;
+  url: string;
+  description: string;
+  stars: number;
+  language?: string | null;
+  lastUpdated?: string;
+  archived?: boolean;
+  patterns: string[];
+  cautions: string[];
+}
+
+export interface GitHubResearchBrief {
+  query: string;
+  generatedAt: string;
+  summary: string;
+  references: GitHubResearchReference[];
+  patterns: string[];
+  cautions: string[];
+}
+
 // ===== 추천 결과 =====
 export interface Recommendation {
   projectType: ProjectType;
@@ -109,6 +131,16 @@ export interface DebateMessage {
   decisionReason?: string;
   autoRerun?: boolean;
   timestamp: number;
+}
+
+export interface JudgeVerdict {
+  consensus_level: number;        // 0.0 to 1.0
+  is_superficial_agreement: boolean;
+  decision: "continue" | "stop";
+  reason: string;
+  final_answer?: string;           // when decision===stop
+  guidance_for_next_round?: string; // when decision===continue
+  round?: number;                  // for accumulation
 }
 
 // ===== 피드백 =====
@@ -161,6 +193,8 @@ export interface DebateState {
   clarificationPhase: ClarificationPhase;
   generatedCommand: string;
   prototypeHtml: string;
+  judgeVerdicts?: JudgeVerdict[];
+  useJudge?: boolean;
   harness?: PlanHarnessArtifacts;
   activeWorkflow?: "standard" | "plan_harness";
   currentHarnessStage?: PlanHarnessStage;
@@ -194,8 +228,11 @@ export interface Session {
   feedbacks: FeedbackEntry[];
   clarifications?: ClarificationQA[];
   clarificationRound?: number;
+  clarificationPhase?: ClarificationPhase;
   generatedCommand?: string;
   prototypeHtml?: string;
+  judgeVerdicts?: JudgeVerdict[];
+  useJudge?: boolean;
   harness?: PlanHarnessArtifacts;
   activeWorkflow?: "standard" | "plan_harness";
   status: string;
@@ -263,6 +300,7 @@ export interface ClarifyRequest {
   topic: string;
   previousQA: ClarificationQA[];
   round: number;
+  phase?: ClarificationPhase;
   debateEngine?: DebateEngineId;
 }
 
@@ -289,6 +327,7 @@ export interface HarnessInputArtifacts {
   cps?: CpsDocument;
   generatedPlan?: GeneratedPlan;
   evaluation?: PlanEvaluation;
+  githubResearch?: GitHubResearchBrief;
 }
 
 // ===== Plan Harness 타입 =====
@@ -380,6 +419,7 @@ export interface HarnessRunSnapshot {
 }
 
 export interface PlanHarnessArtifacts {
+  githubResearch?: GitHubResearchBrief;
   requirementSpec?: RequirementSpec;
   cps?: CpsDocument;
   generatedPlan?: GeneratedPlan;
@@ -398,12 +438,14 @@ export type PlanHarnessStage = "normalize" | "cps" | "generate" | "lint" | "eval
 export type PlanHarnessStreamEvent =
   | { event: "started"; timestamp: number }
   | { event: "stage_started"; stage: PlanHarnessStage; timestamp: number }
+  | { event: "github_research"; research: GitHubResearchBrief; timestamp: number }
   | { event: "attempt"; attempt: PlanAttempt; timestamp: number }
   | { event: "lint_result"; issues: PlanLintIssue[]; errorCount: number; warningCount: number; timestamp: number }
   | { event: "evaluation_result"; evaluation: PlanEvaluation; timestamp: number }
   | {
       event: "completed";
       success: boolean;
+      githubResearch?: GitHubResearchBrief;
       requirementSpec?: RequirementSpec;
       cps?: CpsDocument;
       generatedPlan?: GeneratedPlan;
@@ -434,11 +476,13 @@ export interface PlanHarnessRequest {
   referencePrd?: string;
   revisionRequest?: string;
   previousPlanSummary?: string;
+  githubResearch?: GitHubResearchBrief;
   models?: HarnessModelSettings;
 }
 
 export interface PlanHarnessResponse {
   success: boolean;
+  githubResearch?: GitHubResearchBrief;
   requirementSpec?: RequirementSpec;
   cps?: CpsDocument;
   generatedPlan?: GeneratedPlan;

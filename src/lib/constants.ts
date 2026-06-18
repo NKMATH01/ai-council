@@ -180,8 +180,8 @@ export const ACADEMY_ROLES: DebateRoleId[] = [
 // /ideate 모드 phase별 clarification 역할
 export const CLARIFY_PHASE_ROLES: Record<import("./types").ClarificationPhase, DebateRoleId[]> = {
   vision: ["planner"],
-  features: ["architect", "ux_advocate"],
-  technical: ["backend", "frontend", "data_expert"],
+  features: ["architect"],
+  technical: ["backend"],
   resolution: ["moderator"],
 };
 
@@ -303,6 +303,7 @@ export const MODE_INFO: Record<DebateCommand, {
 }> = {
   debate: { label: "새 프로젝트 설계 토론", shortLabel: "/debate", description: "AI가 역할 추천 → 토론 → PRD", category: "설계" },
   quick: { label: "빠른 3인 토론", shortLabel: "/quick", description: "설계자+비판자+중재자", category: "설계" },
+  judge: { label: "AI 연합 (심판 토론)", shortLabel: "/judge", description: "Gemini·GPT·Claude 3개 AI가 라운드로 토론하고 Claude 심판이 수렴을 판정해 종합", category: "설계" },
   deep: { label: "깊은 7인 토론", shortLabel: "/deep", description: "전체 7인 + 외부 검증", category: "설계" },
   consult: { label: "전문가 의견 청취", shortLabel: "/consult", description: "기존 코드에 대한 전문가 리뷰", category: "보완" },
   extend: { label: "기능 추가 설계", shortLabel: "/extend", description: "기존 프로그램에 기능 추가", category: "보완" },

@@ -18,10 +18,12 @@ import UiPrototype from "./UiPrototype";
 import SimilarDebates from "./SimilarDebates";
 import ClarificationPanel from "./ClarificationPanel";
 import RequirementSpecPanel from "./RequirementSpecPanel";
+import GitHubResearchPanel from "./GitHubResearchPanel";
 import CpsPanel from "./CpsPanel";
 import GeneratedPlanPanel from "./GeneratedPlanPanel";
 import PlanEvaluationPanel from "./PlanEvaluationPanel";
 import HarnessDiffPanel from "./HarnessDiffPanel";
+import JudgePanel from "./JudgePanel";
 import { computeHarnessDiff } from "@/lib/harness-diff";
 import Markdown from "react-markdown";
 
@@ -29,7 +31,7 @@ export default function DebateArena() {
   const {
     state, streamText, streamRoleId, streamLabel,
     requestRecommendation, confirmAndStart,
-    startQuick, startDeep, startConsult, startExtend, startFix, startAcademy,
+    startQuick, startJudge, startDeep, startConsult, startExtend, startFix, startAcademy,
     startIdeate, submitClarificationAndAskMore, submitClarificationAndDebate,
     startPlanHarness, rerunPlanHarness, generateHarnessPrd,
     handleVerificationChoice,
@@ -62,6 +64,7 @@ export default function DebateArena() {
     // standard workflow: command 기반 분기
     switch (data.command) {
       case "quick": startQuick(data); break;
+      case "judge": startJudge(data); break;
       case "deep": startDeep(data); break;
       case "consult": startConsult(data); break;
       case "extend": startExtend(data); break;
@@ -323,6 +326,9 @@ export default function DebateArena() {
               )}
 
               {/* 결과 패널들 — 도착하는 대로 부분 표시 */}
+              {state.harness?.githubResearch && (
+                <GitHubResearchPanel research={state.harness.githubResearch} />
+              )}
               {state.harness?.requirementSpec && (
                 <RequirementSpecPanel spec={state.harness.requirementSpec} />
               )}
@@ -402,6 +408,9 @@ export default function DebateArena() {
                 engineLabel={getEngineLabel(state.debateEngine)}
               />
             ))}
+            {state.judgeVerdicts && state.judgeVerdicts.length > 0 && (
+              <JudgePanel verdicts={state.judgeVerdicts} />
+            )}
           </div>
 
           {/* 외부 검증 스트리밍 */}

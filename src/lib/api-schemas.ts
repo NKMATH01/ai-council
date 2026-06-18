@@ -10,7 +10,7 @@ const DebateRoleIdSchema = z.enum([
 ]);
 
 const DebateCommandSchema = z.enum([
-  "quick", "deep", "debate", "consult", "extend", "fix", "ideate", "academy",
+  "quick", "deep", "debate", "consult", "extend", "fix", "ideate", "academy", "judge",
 ]);
 
 const DebateStageIdSchema = z.enum([
@@ -65,7 +65,18 @@ const ClarificationQASchema = z.object({
   parsedQuestions: z.array(ParsedQuestionSchema).optional(),
   answers: z.string(),
   round: z.number(),
+  phase: z.enum(["vision", "features", "technical", "resolution"]).optional(),
   timestamp: z.number(),
+});
+
+const JudgeVerdictSchema = z.object({
+  consensus_level: z.number().min(0).max(1),
+  is_superficial_agreement: z.boolean(),
+  decision: z.enum(["continue", "stop"]),
+  reason: z.string(),
+  final_answer: z.string().optional(),
+  guidance_for_next_round: z.string().optional(),
+  round: z.number().optional(),
 });
 
 const ConsultInputSchema = z.object({
@@ -100,6 +111,7 @@ const ModeInputSchema = z.union([
 ]).optional();
 
 const HarnessInputArtifactsSchema = z.object({
+  githubResearch: z.any().optional(),
   requirementSpec: z.any().optional(),
   cps: z.any().optional(),
   generatedPlan: z.any().optional(),
@@ -188,6 +200,21 @@ export const ClarifyRequestSchema = z.object({
   debateEngine: DebateEngineIdSchema.optional(),
 });
 
+/** POST /api/judge */
+export const JudgeRequestSchema = z.object({
+  topic: z.string().min(1),
+  transcript: z.array(z.object({
+    round: z.number(),
+    engine: z.string(),
+    roleId: z.string(),
+    content: z.string(),
+  })),
+  round: z.number().int().min(1),
+  maxRounds: z.number().int().min(1).optional(),
+  consensusThreshold: z.number().min(0).max(1).optional(),
+  synthesize: z.boolean().optional(),
+});
+
 /** POST /api/generate-command */
 export const GenerateCommandRequestSchema = z.object({
   topic: z.string().min(1, "topic은 필수입니다"),
@@ -220,7 +247,16 @@ export const PlanHarnessRequestSchema = z.object({
   referencePrd: z.string().optional(),
   revisionRequest: z.string().optional(),
   previousPlanSummary: z.string().optional(),
+  githubResearch: z.any().optional(),
   models: HarnessModelSettingsSchema,
+});
+
+/** POST /api/research/github */
+export const GithubResearchRequestSchema = z.object({
+  topic: z.string().min(1, "topic은 필수입니다"),
+  command: DebateCommandSchema.optional(),
+  techSpec: z.string().optional(),
+  limit: z.number().int().min(1).max(5).optional(),
 });
 
 /** POST /api/search (find similar debates) */
@@ -249,8 +285,10 @@ export const SessionSaveSchema = z.object({
   feedbacks: z.array(FeedbackEntrySchema).optional(),
   clarifications: z.array(ClarificationQASchema).optional(),
   clarificationRound: z.number().optional(),
+  clarificationPhase: z.enum(["vision", "features", "technical", "resolution"]).optional(),
   generatedCommand: z.string().optional(),
   prototypeHtml: z.string().optional(),
+  judgeVerdicts: z.array(JudgeVerdictSchema).optional(),
   harness: z.any().optional(),
   activeWorkflow: z.enum(["standard", "plan_harness"]).optional(),
   status: z.string(),

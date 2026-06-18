@@ -68,6 +68,19 @@ function applyHarnessEvent(ctx: WorkflowContext, ev: PlanHarnessStreamEvent) {
       ctx.setStreamLabel(harnessStageLabel(ev.stage));
       break;
 
+    case "github_research": {
+      const cur = ctx.stateRef.current;
+      ctx.dispatch({
+        type: "UPDATE_HARNESS",
+        updates: {
+          harness: cur.harness
+            ? { ...cur.harness, githubResearch: ev.research }
+            : { githubResearch: ev.research, lintIssues: [], attempts: [] },
+        },
+      });
+      break;
+    }
+
     case "attempt": {
       const cur = ctx.stateRef.current;
       ctx.dispatch({
@@ -113,6 +126,7 @@ function applyHarnessEvent(ctx: WorkflowContext, ev: PlanHarnessStreamEvent) {
         type: "UPDATE_HARNESS",
         updates: {
           harness: {
+            githubResearch: ev.githubResearch || cur.harness?.githubResearch,
             requirementSpec: ev.requirementSpec,
             cps: ev.cps,
             generatedPlan: ev.generatedPlan,

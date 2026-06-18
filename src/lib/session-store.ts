@@ -5,15 +5,25 @@ import { Session, SessionSummary } from "./types";
 export type SaveStorageMode = "dedicated" | "legacy";
 
 export async function saveSession(session: Session): Promise<{ storageMode: SaveStorageMode }> {
-  let storageMode: SaveStorageMode = "dedicated";
-  let row = buildSessionRow(session);
+  let harnessStorage: SaveStorageMode = "dedicated";
+  let judgeStorage: SaveStorageMode = "dedicated";
+  const build = () => buildSessionRow(session, { harnessStorage, judgeStorage });
+
+  let row = build();
   let { error } = await upsertDebateRow(row);
 
   // 점진적 fallback: 없는 컬럼을 하나씩 제거하며 재시도
   if (error && isMissingHarnessStorageColumnError(error.message)) {
-    storageMode = "legacy";
+    harnessStorage = "legacy";
     console.warn("[session-store] harness columns not found, falling back to legacy");
-    row = buildSessionRow(session, { harnessStorage: "legacy" });
+    row = build();
+    ({ error } = await upsertDebateRow(row));
+  }
+
+  if (error && isMissingColumnError(error.message, "judge_verdicts")) {
+    judgeStorage = "legacy";
+    console.warn("[session-store] judge_verdicts column not found, falling back to legacy");
+    row = build();
     ({ error } = await upsertDebateRow(row));
   }
 
@@ -42,7 +52,7 @@ export async function saveSession(session: Session): Promise<{ storageMode: Save
     if (specError) throw new Error(`saveTechSpec failed: ${specError.message}`);
   }
 
-  return { storageMode };
+  return { storageMode: harnessStorage };
 }
 
 export async function saveUiVersion(

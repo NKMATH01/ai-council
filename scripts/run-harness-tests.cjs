@@ -20,3 +20,5 @@ require.extensions[".ts"] = function registerTs(module, filename) {
 
 const testPath = path.resolve(__dirname, "..", "src", "lib", "plan-harness.test.ts");
 Module._load(testPath, module, true);
+const judgeTestPath = path.resolve(__dirname, "..", "src", "lib", "judge.test.ts");
+Module._load(judgeTestPath, module, true);
