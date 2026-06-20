@@ -189,7 +189,10 @@ async function runJudgeDebate(
       callDebater: async (engine, roleId, round, stage, guidance) => {
         ctx.dispatch({ type: "SET_STAGE", stage, status: "debating" });
         ctx.setStreamLabel(`라운드 ${round} · ${engine} · ${roleId}`);
-        const history = stage === "independent" && round === 1 ? [] : allMessages;
+        // 후반 라운드 초점 유지를 위해 토론자에게는 최근 2라운드 답변만 전달(심판은 turns 전체를 봄).
+        const history = stage === "independent" && round === 1
+          ? []
+          : allMessages.slice(-DEBATER_LINEUP.length * 2);
         const msg = await runRole(ctx, roleId, stage, snap.topic, history, snap, guidance, engine);
         allMessages.push(msg);
         ctx.dispatch({ type: "SET_MESSAGES", messages: [...allMessages] });

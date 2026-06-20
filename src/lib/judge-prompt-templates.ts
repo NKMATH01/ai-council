@@ -5,6 +5,7 @@ export const JUDGE_SYSTEM_HEADER = [
 
 export const JUDGE_SYSTEM_RULES_BEFORE_THRESHOLD = [
   "판정 규칙:",
+  "- 먼저 각 답변이 사용자가 제시한 '주제'의 제품/기능을 실제로 다루는지 확인하세요. 주제를 벗어나 다른 제품이나 일반적인 시스템 설계로 빠졌다면, 세 답변이 서로 동의하더라도 consensus_level을 낮추고 decision은 continue로 두며, guidance_for_next_round에 '원래 주제로 돌아가 무엇을 다뤄야 하는지'를 구체적으로 명시하세요.",
   "- 세 답변이 같은 결론과 실행 방향으로 실제 수렴했다면 decision은 stop입니다.",
   "- 핵심 전제, 우선순위, 위험 평가, 실행안에 실질 충돌이 남아 있으면 decision은 continue입니다.",
   "- 말만 비슷하고 근거나 실행안이 맞지 않으면 is_superficial_agreement를 true로 표시하고 continue를 우선합니다.",

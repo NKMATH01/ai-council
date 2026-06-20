@@ -297,6 +297,39 @@ async function test(name: string, fn: () => void | Promise<void>) {
     assert.deepEqual(mapRowToSession(row, "").judgeVerdicts, sampleVerdicts);
   });
 
+  await test("runJudgeLoop uses final stage on the last round", async () => {
+    const stagesByRound: Record<number, string> = {};
+    await runJudgeLoop({
+      maxRounds: 3,
+      lineup,
+      callDebater: async (engine, _roleId, round, stage) => {
+        stagesByRound[round] = stage;
+        return `${engine} r${round}`;
+      },
+      callJudge: async (_round, _turns, synthesize) => ({
+        consensus_level: 0.5,
+        is_superficial_agreement: false,
+        decision: synthesize ? "stop" : "continue",
+        reason: "test",
+        ...(synthesize ? { final_answer: "최종" } : { guidance_for_next_round: "계속" }),
+      }),
+    });
+    assert.equal(stagesByRound[1], "independent");
+    assert.equal(stagesByRound[2], "critique");
+    assert.equal(stagesByRound[3], "final");
+  });
+
+  await test("normalizeVerdict injects default guidance when continue lacks it", () => {
+    const verdict = parseJudgeVerdict(JSON.stringify({
+      consensus_level: 0.4,
+      is_superficial_agreement: false,
+      decision: "continue",
+      reason: "충돌 남음",
+    }));
+    assert.equal(verdict?.decision, "continue");
+    assert.ok(verdict?.guidance_for_next_round && verdict.guidance_for_next_round.length > 0);
+  });
+
   console.log(`passed ${passed} judge tests`);
 })().catch((error) => {
   console.error(error instanceof Error ? error.stack : error);
