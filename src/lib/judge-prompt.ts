@@ -35,6 +35,7 @@ export function buildJudgeMessages({
     `## 종합 모드\n${synthesize ? "true" : "false"}`,
     `## 토론 기록\n${transcriptText || "(토론 기록 없음)"}`,
     synthesizeInstruction,
+    "## 평가 지시\n각 토론자 답변이 위 '주제'를 실제로 다루는지 먼저 확인하고, 주제 이탈·피상적 동의를 반영해 판정하세요.",
     "\nJSON 객체 하나만 반환하세요.",
   ].join("\n\n");
 

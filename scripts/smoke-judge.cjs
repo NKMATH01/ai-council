@@ -104,10 +104,13 @@ async function runCase(label, topic) {
 
 (async () => {
   console.log(`심판 스모크 시작 — BASE=${BASE} MAX_ROUNDS=${MAX}`);
-  const easy = await runCase("EASY(동조 예상)", "2 + 2 는 얼마인가? 근거와 함께 간단히 답하라.");
+  const easy = await runCase(
+    "SIMPLE(수렴 예상)",
+    "할 일(To-do) 관리 웹앱. 기능: 할 일 추가, 완료 체크, 삭제, 목록 보기. 간단한 단일 페이지 앱.",
+  );
   const contested = await runCase(
-    "CONTESTED(충돌 예상)",
-    "원격근무와 사무실 복귀 중 팀 생산성에 무엇이 더 유리한가? 서로 다른 입장에서 근거를 들어 논쟁하라.",
+    "COMPLEX(충돌 예상)",
+    "여러 사용자가 동시에 편집하는 실시간 협업 화이트보드 SaaS. 동기화 방식, 충돌 해결, 인프라 선택을 설계하라.",
   );
 
   const ok = [easy, contested].every(

@@ -1,5 +1,7 @@
 import { DebateEngineId, DebateRoleId, DebateStageId, JudgeVerdict } from "./types";
 
+const DEFAULT_GUIDANCE = "실제 충돌점, 누락된 근거, 합의 가능한 실행안을 더 구체적으로 지적하세요.";
+
 export interface DebaterTurn {
   round: number;
   engine: DebateEngineId;
@@ -48,7 +50,12 @@ export async function runJudgeLoop(options: JudgeLoopOptions): Promise<JudgeLoop
   while (round < options.maxRounds) {
     throwIfAborted(options.signal);
     round += 1;
-    const stage: DebateStageId = round === 1 ? "independent" : "critique";
+    // 마지막 라운드는 토론자에게 final(수렴/확정) 단계를 줘서 심판 종합 전에 수렴을 유도한다.
+    const stage: DebateStageId = round === 1
+      ? "independent"
+      : round === options.maxRounds
+        ? "final"
+        : "critique";
 
     for (const debater of options.lineup) {
       throwIfAborted(options.signal);
@@ -127,17 +134,27 @@ export function normalizeVerdict(value: unknown): JudgeVerdict | null {
     ? Math.min(1, Math.max(0, rawConsensus))
     : 0;
 
-  return {
+  const guidance = typeof record.guidance_for_next_round === "string"
+    ? record.guidance_for_next_round.trim()
+    : "";
+
+  const verdict: JudgeVerdict = {
     consensus_level: consensusLevel,
     is_superficial_agreement: record.is_superficial_agreement === true,
     decision,
     reason: typeof record.reason === "string" ? record.reason : "",
     ...(typeof record.final_answer === "string" ? { final_answer: record.final_answer } : {}),
-    ...(typeof record.guidance_for_next_round === "string"
-      ? { guidance_for_next_round: record.guidance_for_next_round }
-      : {}),
     ...(typeof record.round === "number" ? { round: record.round } : {}),
   };
+
+  if (decision === "continue") {
+    // continue인데 다음 라운드 지시가 비면 기본 guidance를 강제 주입(방향 없는 라운드 방지).
+    verdict.guidance_for_next_round = guidance || DEFAULT_GUIDANCE;
+  } else if (guidance) {
+    verdict.guidance_for_next_round = guidance;
+  }
+
+  return verdict;
 }
 
 export function fallbackVerdict(reason?: string): JudgeVerdict {
@@ -146,6 +163,6 @@ export function fallbackVerdict(reason?: string): JudgeVerdict {
     is_superficial_agreement: false,
     decision: "continue",
     reason: reason || "심판 응답을 해석하지 못해 다음 라운드를 진행합니다.",
-    guidance_for_next_round: "실제 충돌점, 누락된 근거, 합의 가능한 실행안을 더 구체적으로 지적하세요.",
+    guidance_for_next_round: DEFAULT_GUIDANCE,
   };
 }

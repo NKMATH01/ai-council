@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
       userMessage = formatModeInput(command, modeInput);
     } else if (command === "academy") {
       userMessage = `## 학원 운영 토론 주제\n${topic}\n\n개발 프로젝트가 아니라 학원 운영 의사결정으로 분석하세요. 수강생 모집, 상담 전환, 반 편성, 강사 배치, 커리큘럼, 학부모 커뮤니케이션, 재등록률, 매출, 비용, 운영 리스크 관점을 포함하세요.`;
+    } else if (command === "judge") {
+      userMessage = `## 주제\n${topic}\n\n이 토론은 위 주제(제품/기능)에 한정합니다. 주제와 무관한 다른 제품이나 일반적인 시스템 설계로 벗어나지 말고, 바로 이 주제 자체를 구체적으로 설계·검토하세요.`;
     } else {
       userMessage = `## 주제\n${topic}`;
     }
@@ -34,7 +36,11 @@ export async function POST(request: NextRequest) {
     if (historyText) userMessage += historyText;
 
     if (isRefine && feedback) {
-      userMessage += `\n\n## 사용자 피드백\n${feedback}`;
+      if (command === "judge") {
+        userMessage = `## 심판 지시 (이번 라운드 최우선 반영)\n${feedback}\n\n${userMessage}`;
+      } else {
+        userMessage += `\n\n## 사용자 피드백\n${feedback}`;
+      }
     }
 
     userMessage += `\n\n${getDebateProtocolPrompt(stage)}`;
